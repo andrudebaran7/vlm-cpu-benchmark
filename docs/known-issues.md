@@ -167,6 +167,31 @@ Each entry: symptom → root cause → resolution → status.
 - **Status:** OPEN — 3 of 4 models currently run; InternVL deferred
   pending a decision on how much effort to invest.
 
+## I11 — Florence-2 returns captions, not answers, under a plain question prompt
+
+- **Symptom:** on the DocVQA run, `florence2-base` scored ANLS 0.000; its
+  outputs are descriptive captions ("The image is an advertisement
+  for...") rather than extracted answers.
+- **Root cause:** Florence-2 is task-token driven (`<OCR>`, `<CAPTION>`,
+  `<VQA>`, ...); the adapter sends the raw question with no task token, so
+  the model defaults to captioning.
+- **Resolution:** not applied — flagged as an adapter-prompting
+  limitation. Candidate fix: prepend an appropriate Florence-2 task token
+  and parse the structured output.
+- **Status:** OPEN — reported as measured; adapter improvement candidate.
+
+## I12 — DocVQA latency far exceeds the synthetic-image estimate
+
+- **Observation:** on real high-resolution DocVQA document images
+  (~1370x1480), mean per-inference latency (fp32, CPU, N=100) was
+  Florence-2 ~4.2 s, SmolVLM-256M ~23.3 s, and Moondream2 ~215 s — the
+  last ~2.5x higher than the ~85 s seen on the 64x64 synthetic `sample`
+  image (I8). High-resolution documents inflate the visual token budget;
+  the full 4-model run took ~8 h wall-clock, dominated by Moondream2.
+- **Planning lesson:** never extrapolate CPU runtime from a toy image;
+  size the subsample against the real task's images.
+- **Status:** NOTED (result + planning lesson).
+
 ---
 
 ### Dependency summary for a working 3-of-4-model fp32 run
