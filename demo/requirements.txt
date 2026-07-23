@@ -1,0 +1,13 @@
+# CPU-only torch build (no CUDA needed for the demo / HF Spaces "CPU Basic" tier)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.3.1
+transformers==4.44.2
+accelerate==0.33.0
+gradio==4.44.0
+
+# vlmbench itself: this file assumes the full repo (including src/ and
+# pyproject.toml) is checked out alongside demo/, e.g. as a Hugging Face
+# Space created from a mirror of this repository. Swap for a pinned git URL
+# if deploying demo/ standalone, e.g.:
+#   vlmbench @ git+https://github.com/<owner>/<repo>.git@<tag-or-sha>
+.
