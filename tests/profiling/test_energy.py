@@ -1,4 +1,11 @@
-from vlmbench.profiling.energy import measure_energy_j
+from vlmbench.profiling.energy import _is_top_level_domain, measure_energy_j
+
+
+def test_top_level_domain_filter_excludes_nested_subdomains():
+    # Package domain is summed; its nested 'core' sub-domain is not (it would
+    # double-count energy already inside the package).
+    assert _is_top_level_domain("/sys/class/powercap/intel-rapl:0/energy_uj")
+    assert not _is_top_level_domain("/sys/class/powercap/intel-rapl:0:0/energy_uj")
 
 
 def test_computes_joules_from_reader_delta():
