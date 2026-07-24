@@ -22,39 +22,31 @@ Backends not listed as `yes` for a model raise/skip via
 
 ## onnx-int8 (SmolVLM)
 
-`onnx_export.py` provides `export_smolvlm_onnx_int8(source, out_dir) -> Path`,
-which:
+optimum cannot export or load SmolVLM/Idefics3 ONNX (see
+`docs/known-issues.md` I13). Instead, `onnx_smolvlm.py` drives the model's own
+pre-quantized ONNX graphs, which SmolVLM-256M ships on the Hub as three
+separate files per precision (`vision_encoder_int8.onnx`,
+`embed_tokens_int8.onnx`, `decoder_model_merged_int8.onnx`).
 
-1. Exports the HuggingFace model at `source` to ONNX via
-   `optimum.onnxruntime.ORTModelForVision2Seq.from_pretrained(source, export=True)`.
-2. Saves the exported graph to `out_dir`.
-3. Dynamically quantizes every `*.onnx` file in `out_dir` to INT8 using
-   `optimum.onnxruntime.ORTQuantizer` with an AVX2 per-channel
-   `AutoQuantizationConfig`.
+`download_onnx_variant(source, "int8")` downloads those three graphs, and
+`OnnxSmolVLM` loads them as three ONNX Runtime sessions and runs a greedy
+generation loop on CPU: token + image embeddings are merged at the
+`image_token_id` positions, then the decoder is stepped autoregressively with
+a KV cache threaded across calls.
 
-`SmolVLMAdapter.load(backend="onnx-int8", dtype="int8")` uses this export
-lazily: it checks the on-disk cache (`vlmbench._paths.quant_dir`) for an
-existing `*.onnx` artifact and only triggers a fresh export if none is found,
-then loads the model with
-`optimum.onnxruntime.ORTModelForVision2Seq.from_pretrained(out)` and runs
-inference through ONNX Runtime on CPU (`self._runtime = "onnx"`).
+`SmolVLMAdapter.load(backend="onnx-int8", ...)` wires this in: it downloads the
+int8 variant, constructs `OnnxSmolVLM`, and routes `infer()` through it
+(`self._runtime = "onnx"`), decoding only the newly generated tokens.
 
-The cache directory defaults to `.vlmbench_cache/<model_name>/<backend>/`
-relative to the current working directory, or `$VLMBENCH_CACHE/<model_name>/<backend>/`
-if that environment variable is set.
+### Downloading ahead of time
 
-### Exporting ahead of time
-
-Rather than paying the export cost on first `load()`, pre-export with the
-CLI helper:
+Rather than paying the download cost on first `load()`, pre-fetch with the CLI
+helper:
 
 ```bash
 uv pip install -e '.[quant]' 'optimum[onnxruntime]>=1.20'
 .venv/bin/python scripts/export_quantized.py --model smolvlm-256m --backend onnx-int8
 ```
-
-This populates the same cache directory `SmolVLMAdapter.load` looks for, so
-subsequent benchmark runs with `backend="onnx-int8"` skip re-exporting.
 
 ## Requirements
 
@@ -62,7 +54,7 @@ The `optimum[onnxruntime]`, `onnxruntime`, and (transitively) `torch` /
 `transformers` packages are required to run an export or `onnx-int8`
 inference; they are intentionally *not* imported at module import time
 anywhere in this package (all imports happen inside functions/methods), so
-importing `vlmbench.backends.onnx_export`, `vlmbench.models.smolvlm`, or
+importing `vlmbench.backends.onnx_smolvlm`, `vlmbench.models.smolvlm`, or
 `vlmbench._paths` never requires them to be installed. Install them with the
 `quant` extra plus `optimum[onnxruntime]` (see command above) before actually
 exporting or running the `onnx-int8` backend.
