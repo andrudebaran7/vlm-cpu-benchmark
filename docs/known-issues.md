@@ -187,10 +187,21 @@ Each entry: symptom → root cause → resolution → status.
 - **Root cause:** Florence-2 is task-token driven (`<OCR>`, `<CAPTION>`,
   `<VQA>`, ...); the adapter sends the raw question with no task token, so
   the model defaults to captioning.
-- **Resolution:** not applied — flagged as an adapter-prompting
-  limitation. Candidate fix: prepend an appropriate Florence-2 task token
-  and parse the structured output.
-- **Status:** OPEN — reported as measured; adapter improvement candidate.
+- **Resolution:** the adapter now issues the `<OCR>` task token (the
+  document-appropriate Florence-2 task) instead of the previous
+  `<MORE_DETAILED_CAPTION>`, and post-processes the OCR output. This is the
+  correct task token, but it does **not** raise the DocVQA score: Florence-2
+  has no VQA/question-answering head, so `<OCR>` returns the entire page
+  transcription rather than the targeted answer, and ANLS against a short
+  gold answer stays at 0.000. Verified over the full N=100 subsample.
+  Latency rose from ~4.2 s to ~9.9 s because OCR emits far more tokens
+  (max_new_tokens raised to 256; kept greedy, `num_beams=1`, for a fair
+  latency comparison with the other adapters).
+- **Conclusion:** unlike I15 (a genuine adapter bug that had suppressed a
+  real score), Florence-2's zero is a true task/model mismatch — it is an
+  OCR/caption/detection model, not a document-QA model. Reported as such.
+- **Status:** RESOLVED (correct task token in place; the 0.000 is a real
+  capability result, not an artifact).
 
 ## I12 — DocVQA latency far exceeds the synthetic-image estimate
 
