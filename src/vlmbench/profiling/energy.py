@@ -9,8 +9,18 @@ T = TypeVar("T")
 _POWERCAP_GLOB = "/sys/class/powercap/*/energy_uj"
 
 
+def _is_top_level_domain(energy_path: str) -> bool:
+    """True for a top-level RAPL package (e.g. ``intel-rapl:0``), False for a
+    nested sub-domain (e.g. ``intel-rapl:0:0`` = core). Nested sub-domains are
+    already accounted for in their parent package's energy, so summing them
+    would double-count."""
+    domain = os.path.basename(os.path.dirname(energy_path))  # e.g. intel-rapl:0
+    return domain.count(":") <= 1
+
+
 def _discover_powercap_files() -> list[str]:
-    return sorted(glob.glob(_POWERCAP_GLOB))
+    files = glob.glob(_POWERCAP_GLOB)
+    return sorted(p for p in files if _is_top_level_domain(p))
 
 
 def _default_reader() -> int | None:

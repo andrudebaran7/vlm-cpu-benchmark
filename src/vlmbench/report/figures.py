@@ -14,17 +14,20 @@ def _fmt(value) -> str:
 
 
 def latex_results_table(results: list[CellResult]) -> str:
-    header = "\\begin{tabular}{lllrrr}\n\\toprule\n"
-    header += "model & backend & task & metric & infer\\_ms & peak\\_mb \\\\\n\\midrule\n"
+    header = "\\begin{tabular}{lllrrrr}\n\\toprule\n"
+    header += ("model & backend & task & metric & infer\\_ms & peak\\_mb "
+               "& energy\\_j \\\\\n\\midrule\n")
     lines = []
     for r in results:
         if r.status is CellStatus.OK:
             metric = _fmt(r.metric_value)
             infer = _fmt(r.infer_ms_mean)
             peak = _fmt(r.peak_rss_mb)
+            energy = _fmt(r.energy_j)
         else:
-            metric = infer = peak = f"\\text{{{r.status.value}}}"
-        lines.append(f"{r.model} & {r.backend} & {r.task} & {metric} & {infer} & {peak} \\\\")
+            metric = infer = peak = energy = f"\\text{{{r.status.value}}}"
+        lines.append(f"{r.model} & {r.backend} & {r.task} & {metric} & {infer} "
+                     f"& {peak} & {energy} \\\\")
     body = "\n".join(lines)
     footer = "\n\\bottomrule\n\\end{tabular}"
     return header + body + footer

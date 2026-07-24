@@ -23,7 +23,8 @@ def test_latex_table_marks_failed_and_na():
     table = latex_results_table([_ok("a", 100.0, 0.5), _failed("b")])
     assert "tabular" in table
     assert "failed" in table
-    assert "lllrrr" in table
+    assert "lllrrrr" in table
+    assert "energy\\_j" in table
 
 
 def test_tradeoff_plot_written(tmp_path):

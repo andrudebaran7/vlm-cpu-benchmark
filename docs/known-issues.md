@@ -32,10 +32,24 @@ Each entry: symptom → root cause → resolution → status.
 - **Root cause:** Intel RAPL counters (`/sys/class/powercap/...` or perf
   energy events) are not readable by an unprivileged user on this
   machine, so the energy profiler yields no reading.
-- **Resolution options (undecided):** (a) run the benchmark with
-  elevated privileges / adjusted `perf_event_paranoid`; or (b) drop the
-  energy dimension from the paper and report latency + peak RSS only.
-- **Status:** OPEN — decision pending.
+- **Resolution:** granted world-read on the counters
+  (`sudo chmod o+r /sys/class/powercap/intel-rapl:*/energy_uj`; resets on
+  reboot, so a udev rule makes it persistent). On this AMD Ryzen the
+  counters are exposed through the same `intel-rapl` powercap driver.
+  Two follow-on refinements were needed:
+  1. **Double-counting:** the reader summed *every* `*/energy_uj`, but
+     `intel-rapl:0` (package) and `intel-rapl:0:0` (core) are nested, so
+     the core was counted twice. `energy._discover_powercap_files` now
+     keeps only top-level package domains.
+  2. **Cheap measurement:** energy is captured only in the per-cell
+     profiling block (one example), not the N=100 accuracy pass, so
+     `scripts/measure_energy.py` patches `energy_j` into an existing
+     results file by re-profiling one example per cell (~17 min) instead
+     of re-running the whole suite (~6 h).
+  Verified: all five cells report per-inference package energy (e.g.
+  InternVL2.5-2B ~133 J, Moondream2 ~3187 J). Package power was ~14--15 W
+  across models, so energy tracks latency on this machine.
+- **Status:** RESOLVED.
 
 ## I3 — First real cell was silently skipped on re-run (resume dedup)
 
