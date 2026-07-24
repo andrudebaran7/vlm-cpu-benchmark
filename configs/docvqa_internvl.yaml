@@ -1,0 +1,7 @@
+models: [internvl2_5-2b]
+backends: [fp32]
+tasks: [docvqa]
+warmup: 1
+repeats: 3
+subsample_n: 100
+seed: 20260722

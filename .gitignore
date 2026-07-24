@@ -7,3 +7,6 @@ __pycache__/
 # generated benchmark outputs / paper artifacts
 results/
 paper_artifacts/
+
+# vlmbench runtime cache (quantized exports, patched tokenizers)
+.vlmbench_cache/

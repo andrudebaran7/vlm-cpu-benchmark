@@ -164,8 +164,20 @@ Each entry: symptom → root cause → resolution → status.
   widely-cited 2B VLM cannot be loaded at all in an environment where two
   other community VLMs work, due to a silent `from_pretrained` failure
   that returns a wrong-typed object instead of erroring.
-- **Status:** OPEN — 3 of 4 models currently run; InternVL deferred
-  pending a decision on how much effort to invest.
+- **Status:** RESOLVED. Root cause pinned down: InternLM2's
+  `tokenizer.model` contains exactly one degenerate piece (index 354,
+  type UNKNOWN, score ~-188) whose string is a literal NUL character.
+  SentencePiece 0.2.x rejects any model with a NUL in a piece ("piece
+  must not include null character"); transformers 4.x catches the
+  resulting `RuntimeError` and returns `False` (assuming a non-SPM file
+  with a fast/tiktoken fallback that InternLM2 does not have). The proper
+  NUL byte is already representable via the BYTE token `<0x00>` (id 3), so
+  the degenerate piece is safe to sanitize. `models/internvl2_5.py` now
+  loads the tokenizer from a patched snapshot: it replaces the NUL in the
+  offending piece with `␀` (U+2400), caches the patched `tokenizer.model`
+  (plus symlinks to the other tokenizer files) under the vlmbench cache,
+  and reuses it on later runs. Verified end-to-end: InternVL2.5-2B now
+  loads and runs a real DocVQA inference. All four models load.
 
 ## I11 — Florence-2 returns captions, not answers, under a plain question prompt
 
