@@ -1,7 +1,9 @@
 from vlmbench.models.base import ModelMeta
 from vlmbench.models.fake import FakeVLModel
 from vlmbench.tasks.base import Example, TaskSpec, run_task, subsample
+from vlmbench.tasks.docvqa import _rows_to_examples
 from vlmbench.tasks.metrics import anls, exact_match
+from vlmbench.tasks.registry import known_tasks
 
 
 def test_exact_match_and_anls():
@@ -17,6 +19,35 @@ def test_subsample_is_deterministic():
     b = subsample(examples, n=5, seed=7)
     assert [e.prompt for e in a] == [e.prompt for e in b]
     assert len(a) == 5
+
+
+def test_docvqa_is_registered():
+    assert "docvqa" in known_tasks()
+
+
+def test_docvqa_row_mapping():
+    class _Img:
+        def __init__(self, tag):
+            self.tag = tag
+            self.converted = False
+
+        def convert(self, mode):
+            self.converted = True
+            return self
+
+    rows = [
+        # multilingual dict query -> English is selected
+        {"image": _Img("a"), "query": {"en": "What is the total?", "es": "..."},
+         "answers": ["$5.00", "5.00"]},
+        # plain-string query still works; falls back to singular 'answer'
+        {"image": _Img("b"), "query": "Who signed it?",
+         "answers": None, "answer": "Alice"},
+    ]
+    examples = _rows_to_examples(rows)
+    assert [e.prompt for e in examples] == ["What is the total?", "Who signed it?"]
+    assert examples[0].answers == ["$5.00", "5.00"]
+    assert examples[1].answers == ["Alice"]  # falls back to singular 'answer'
+    assert examples[0].image.converted is True  # RGB-converted
 
 
 def test_run_task_scores_predictions():

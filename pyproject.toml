@@ -15,11 +15,13 @@ dependencies = [
 [project.optional-dependencies]
 models = [
     "torch>=2.2",
-    "transformers>=4.44",
+    "transformers>=4.44,<5",  # 5.x breaks trust_remote_code VLMs (see docs/known-issues.md I5)
     "accelerate>=0.30",
     "datasets>=2.19",
     "einops>=0.7",
     "timm>=0.9",
+    "sentencepiece>=0.2",
+    "protobuf>=4.0",
 ]
 quant = ["onnxruntime>=1.18", "openvino>=2024.2", "llama-cpp-python>=0.2.80"]
 demo = ["gradio>=4.0"]

@@ -1,0 +1,7 @@
+models: [smolvlm-256m, moondream2, florence2-base, internvl2_5-2b]
+backends: [fp32]
+tasks: [sample]
+warmup: 1
+repeats: 3
+subsample_n: 200
+seed: 20260722

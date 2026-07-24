@@ -36,9 +36,17 @@ class SmolVLMAdapter:
             self._model = ORTModelForVision2Seq.from_pretrained(out)
             self._runtime = "onnx"
             return
-        from transformers import AutoModelForVision2Seq
-        self._model = AutoModelForVision2Seq.from_pretrained(
-            self._meta.source, torch_dtype=torch.float32).to("cpu").eval()
+        try:
+            # transformers >= 5 renamed the auto class.
+            from transformers import AutoModelForImageTextToText as _AutoVLM
+        except ImportError:  # pragma: no cover - older transformers
+            from transformers import AutoModelForVision2Seq as _AutoVLM
+        try:
+            # transformers >= 5 renamed the dtype kwarg to `dtype`.
+            model = _AutoVLM.from_pretrained(self._meta.source, dtype=torch.float32)
+        except TypeError:  # transformers 4.x uses `torch_dtype`
+            model = _AutoVLM.from_pretrained(self._meta.source, torch_dtype=torch.float32)
+        self._model = model.to("cpu").eval()
         self._runtime = "torch"
 
     def infer(self, image: Any, prompt: str) -> str:
