@@ -204,13 +204,66 @@ Each entry: symptom → root cause → resolution → status.
   size the subsample against the real task's images.
 - **Status:** NOTED (result + planning lesson).
 
+## I13 — Quantization tooling for small VLMs is immature (ONNX/optimum)
+
+- **Symptom:** the implemented `onnx-int8` path (optimum export of
+  SmolVLM) does not work, and the model's own pre-exported ONNX cannot be
+  loaded by optimum either.
+- **Details:**
+  - `ORTModelForVision2Seq.from_pretrained(..., export=True)` fails:
+    `ValueError: Trying to export a idefics3 model, that is a custom or
+    unsupported architecture` — optimum has no ONNX exporter for
+    Idefics3/SmolVLM.
+  - SmolVLM-256M *does* ship pre-quantized ONNX on the Hub, but in the
+    Transformers.js layout — three separate graphs (`vision_encoder`,
+    `embed_tokens`, `decoder_model_merged`, each with `_int8`/`_q4`/... 
+    variants) — not optimum's `encoder_model.onnx`/`decoder_model.onnx`
+    seq2seq layout. `ORTModelForVision2Seq` cannot consume it
+    (`Idefics3Config has no attribute num_attention_heads`).
+- **Consequence:** running int8 requires a bespoke onnxruntime inference
+  loop (vision encoder → token embeddings → autoregressive decoder with
+  KV cache across three sessions), i.e. real code, not a config switch.
+- **Status:** custom ONNX-INT8 backend under implementation (see
+  `backends/onnx_smolvlm.py`).
+
+## I14 — moondream2 advertised GGUF backends it does not implement
+
+- **Symptom:** `moondream2` declared `gguf-q4`/`gguf-q8` in
+  `supported_backends`, but its `load()` ignored the `backend` argument
+  and always built the fp32 transformers model. A gguf run would have
+  produced fp32 numbers silently mislabeled as quantized.
+- **Resolution:** removed the unimplemented backends from the model's
+  advertised set (so the orchestrator records them as UNSUPPORTED) and
+  added a guard in `load()` that raises for any non-fp32 backend.
+- **Status:** RESOLVED (honesty fix). A real GGUF path via
+  `llama-cpp-python` remains possible future work.
+
+## I15 — SmolVLM fp32 adapter echoed the prompt, forcing ANLS to 0
+
+- **Symptom:** SmolVLM-256M scored ANLS 0.000 on the fp32 DocVQA run. When
+  the ONNX-INT8 backend (which decodes only newly generated tokens) began
+  returning coherent, sometimes-correct answers to the same questions, the
+  fp32 zero became suspect.
+- **Root cause:** the fp32 adapter decoded the *entire* `generate` output
+  with `batch_decode(ids)`, i.e. the chat prompt plus the answer, yielding
+  strings like ``"User:\n...Assistant: The total amount ... is $840.00."``.
+  ANLS against a bare gold answer is then ~0 regardless of whether the
+  model was right, so the fp32 score reflected an output-extraction bug,
+  not (only) model capability.
+- **Resolution:** slice off the prompt tokens (`ids[:, input_len:]`) before
+  decoding, matching the ONNX path. fp32 SmolVLM must be re-run for a fair
+  number. Like I11 (Florence captioning), this is a reminder that naive
+  adapters can understate a model's measured accuracy.
+- **Status:** RESOLVED (adapter fixed; re-run required).
+
 ---
 
-### Dependency summary for a working 3-of-4-model fp32 run
+### Dependency summary for a working 4-model fp32 run
 
 Beyond `pip install -e '.[models]'`, a clean run required pinning
-`transformers==4.49.0` and adding `sentencepiece` and `protobuf`. The
-net reproducibility lesson: three of the four community VLMs are highly
-sensitive to the `transformers` major version and carry undeclared
-tokenizer dependencies — a non-trivial environment-assembly cost that a
-"just pip install the model" narrative hides.
+`transformers==4.49.0`, adding `sentencepiece` and `protobuf`, and
+patching InternVL2.5's tokenizer (I10). All four community VLMs are highly
+sensitive to the `transformers` major version, carry undeclared tokenizer
+dependencies, and — in one case — ship a corrupt tokenizer token; a
+non-trivial environment-assembly cost that a "just pip install the model"
+narrative hides.

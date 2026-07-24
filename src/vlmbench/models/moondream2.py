@@ -4,9 +4,13 @@ from typing import Any
 
 from .base import ModelMeta
 
+# NOTE: GGUF backends are intentionally not advertised: no GGUF inference
+# path is implemented for moondream2 (its load() below only builds the fp32
+# transformers model), so declaring them would silently mislabel fp32
+# results as quantized. See docs/known-issues.md (I14).
 _META = ModelMeta(name="moondream2", params_b=1.86, license="Apache-2.0",
                   source="vikhyatk/moondream2",
-                  supported_backends=("fp32", "gguf-q4", "gguf-q8"))
+                  supported_backends=("fp32",))
 
 
 class Moondream2Adapter:
@@ -20,6 +24,9 @@ class Moondream2Adapter:
         return self._meta
 
     def load(self, backend: str, dtype: str) -> None:
+        if backend != "fp32":
+            raise NotImplementedError(
+                f"moondream2 has no {backend!r} backend implemented; only fp32.")
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         self._model = AutoModelForCausalLM.from_pretrained(
