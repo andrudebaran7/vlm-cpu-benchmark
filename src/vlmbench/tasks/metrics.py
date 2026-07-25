@@ -10,6 +10,15 @@ def exact_match(pred: str, golds: list[str]) -> float:
     return 1.0 if any(p == _normalize(g) for g in golds) else 0.0
 
 
+def containment(pred: str, golds: list[str]) -> float:
+    """OCRBench-style scoring: correct if any gold answer appears as a
+    substring of the prediction (after lower-casing and whitespace
+    normalization). This mirrors the official OCRBench check
+    (``answer in prediction``) for its general categories."""
+    p = _normalize(pred)
+    return 1.0 if any(_normalize(g) in p for g in golds if g) else 0.0
+
+
 def _levenshtein(a: str, b: str) -> int:
     if a == b:
         return 0
