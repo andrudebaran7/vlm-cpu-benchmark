@@ -281,6 +281,33 @@ Each entry: symptom → root cause → resolution → status.
   adapters can understate a model's measured accuracy.
 - **Status:** RESOLVED (adapter fixed; re-run required).
 
+## I16 — Florence-2 ONNX INT8 needs the merged decoder + a first-step KV quirk
+
+- **Context:** extending quantized coverage to Florence-2. optimum cannot load
+  it (custom `florence2` architecture, same class of problem as SmolVLM/I13),
+  so we drive the onnx-community graphs directly. Florence-2 is
+  encoder-decoder, so there are four graphs and the decoder carries both self-
+  and cross-attention KV.
+- **Two export quirks had to be worked around:**
+  1. The `decoder_with_past_model` graphs have a **static** `inputs_embeds`
+     sequence length of 16 in *every* precision (int8, fp16, uint8, q4, ...),
+     so they cannot be stepped one token at a time. We use
+     `decoder_model_merged` instead (dynamic sequence length).
+  2. On the merged decoder's first step (`use_cache_branch=False`), the
+     cross-attention past KV must be supplied as **real-length zeros**
+     (`[batch, heads, encoder_len, head_dim]`), not zero-length; otherwise the
+     `encoder_attn` MatMul fails with a broadcast error. Subsequent steps set
+     `use_cache_branch=True`, grow the decoder KV, and reuse the (fixed)
+     cross-attention KV computed on the first step.
+- **Result:** Florence-2 INT8 runs correctly (output identical to fp32) at
+  ~6.5 s vs ~9.4 s fp32 (~1.45x faster), ~27% less energy. ANLS stays 0.000
+  (I11: no VQA head), so this is an efficiency-only datapoint.
+- **Implementation:** `backends/onnx_florence2.py`, wired into the Florence-2
+  adapter's `onnx-int8` path.
+- **Status:** RESOLVED. Reinforces I13: usable quantized artifacts exist for
+  these small VLMs, but each needs bespoke runtime glue and carries export
+  bugs; there is no turnkey path.
+
 ---
 
 ### Dependency summary for a working 4-model fp32 run
