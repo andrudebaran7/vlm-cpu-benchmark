@@ -13,6 +13,12 @@ def _fmt(value) -> str:
     return "n/a" if value is None else (f"{value:.3f}" if isinstance(value, float) else str(value))
 
 
+def _tex(s: str) -> str:
+    """Escape LaTeX-special characters in a text cell (e.g. underscores in
+    model ids like ``internvl2_5-2b``)."""
+    return str(s).replace("\\", r"\textbackslash{}").replace("_", r"\_").replace("&", r"\&")
+
+
 def latex_results_table(results: list[CellResult]) -> str:
     header = "\\begin{tabular}{lllrrrr}\n\\toprule\n"
     header += ("model & backend & task & metric & infer\\_ms & peak\\_mb "
@@ -26,8 +32,8 @@ def latex_results_table(results: list[CellResult]) -> str:
             energy = _fmt(r.energy_j)
         else:
             metric = infer = peak = energy = f"\\text{{{r.status.value}}}"
-        lines.append(f"{r.model} & {r.backend} & {r.task} & {metric} & {infer} "
-                     f"& {peak} & {energy} \\\\")
+        lines.append(f"{_tex(r.model)} & {_tex(r.backend)} & {_tex(r.task)} "
+                     f"& {metric} & {infer} & {peak} & {energy} \\\\")
     body = "\n".join(lines)
     footer = "\n\\bottomrule\n\\end{tabular}"
     return header + body + footer
