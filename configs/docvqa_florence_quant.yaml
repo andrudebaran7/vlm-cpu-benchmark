@@ -1,0 +1,7 @@
+models: [florence2-base]
+backends: [fp32, onnx-int8]
+tasks: [docvqa]
+warmup: 1
+repeats: 3
+subsample_n: 100
+seed: 20260722
