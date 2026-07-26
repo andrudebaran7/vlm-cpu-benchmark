@@ -27,21 +27,29 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    task = cfg.tasks[0]
-    examples_all, _spec = build_task(task)
-    examples = subsample(examples_all, cfg.subsample_n, cfg.seed)
-    example0 = examples[0]
-
     rows = [json.loads(l) for l in Path(args.results).read_text().splitlines()]
+
+    # Cache the profiled example (subsampled deterministically) per task, so a
+    # multi-task results file is handled and each dataset is loaded only once.
+    example0_by_task: dict[str, object] = {}
+
+    def example0_for(task: str):
+        if task not in example0_by_task:
+            examples_all, _spec = build_task(task)
+            example0_by_task[task] = subsample(
+                examples_all, cfg.subsample_n, cfg.seed)[0]
+        return example0_by_task[task]
+
     for row in rows:
-        if row["status"] != "ok" or row["task"] != task:
+        if row["status"] != "ok":
             continue
         model = build_model(row["model"])
         model.load(backend=row["backend"], dtype="float32")
-        profile = _profile_first_example(model, example0, cfg.warmup, cfg.repeats)
+        profile = _profile_first_example(
+            model, example0_for(row["task"]), cfg.warmup, cfg.repeats)
         row["energy_j"] = profile.energy_j
-        print(f"{row['model']:16} {row['backend']:10} energy_j="
-              f"{profile.energy_j}")
+        print(f"{row['task']:9} {row['model']:16} {row['backend']:10} "
+              f"energy_j={profile.energy_j}")
 
     with open(args.results, "w") as handle:
         for row in rows:

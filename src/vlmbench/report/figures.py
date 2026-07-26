@@ -46,35 +46,19 @@ _MODEL_COLORS = ("#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9
 _BACKEND_MARKERS = {"fp32": "o", "onnx-int8": "^"}
 
 
-def save_tradeoff_plot(results: list[CellResult], path) -> Path:
-    from matplotlib.lines import Line2D
-
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    ok = [r for r in results if r.status is CellStatus.OK
-          and r.infer_ms_mean is not None and r.metric_value is not None]
-
-    # Stable model -> colour assignment (fixed order, never cycled per point).
-    models = sorted({r.model for r in ok})
-    color_of = {m: _MODEL_COLORS[i % len(_MODEL_COLORS)] for i, m in enumerate(models)}
-    x_max = max((r.infer_ms_mean for r in ok), default=1.0)
-
-    fig, ax = plt.subplots(figsize=(5.2, 3.6))
-    ax.set_xscale("log")  # latency spans ~4s..215s; log separates the cluster
+def _plot_tradeoff_ax(ax, rows, color_of) -> None:
+    """Draw one accuracy-vs-latency panel (log-x, colour=model, marker=backend,
+    direct labels that diverge same-model pairs to avoid collisions)."""
+    ax.set_xscale("log")  # latency spans ~2s..215s; log separates the cluster
     ax.grid(True, which="both", linewidth=0.4, color="0.85", zorder=0)
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
-
-    for r in ok:
+    x_max = max((r.infer_ms_mean for r in rows), default=1.0)
+    for r in rows:
         marker = _BACKEND_MARKERS.get(r.backend, "s")
         ax.scatter(r.infer_ms_mean, r.metric_value, s=70, marker=marker,
                    color=color_of[r.model], edgecolors="white", linewidths=0.8,
                    zorder=3)
-        # Direct label: model on fp32, backend on the quantized sibling (same
-        # colour already ties them together). Diverge same-model pairs
-        # horizontally --- quantized label to the left, fp32 to the right ---
-        # so overlapping points (e.g. both Florence cells at ANLS 0) don't
-        # collide; flip fp32 to the left near the right edge.
         if r.backend == "fp32":
             label = r.model
             right_edge = r.infer_ms_mean > x_max / 3
@@ -84,18 +68,37 @@ def save_tradeoff_plot(results: list[CellResult], path) -> Path:
         ax.annotate(label, (r.infer_ms_mean, r.metric_value),
                     textcoords="offset points", xytext=(dx, 5), ha=ha,
                     fontsize=7, color="0.15")
-
     ax.set_xlabel("inference latency (ms, log scale)")
-    ax.set_ylabel("ANLS")
-    ax.set_title("Accuracy vs. latency (CPU)")
-    ax.set_ylim(-0.05, max((r.metric_value for r in ok), default=1.0) + 0.12)
+    ax.set_ylim(-0.05, max((r.metric_value for r in rows), default=1.0) + 0.12)
 
-    # Backend legend (marker shape); model identity is colour + label.
+
+def save_tradeoff_plot(results: list[CellResult], path) -> Path:
+    from matplotlib.lines import Line2D
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ok = [r for r in results if r.status is CellStatus.OK
+          and r.infer_ms_mean is not None and r.metric_value is not None]
+
+    # Stable model -> colour assignment, shared across task panels.
+    models = sorted({r.model for r in ok})
+    color_of = {m: _MODEL_COLORS[i % len(_MODEL_COLORS)] for i, m in enumerate(models)}
+    tasks = sorted({r.task for r in ok})
+
+    fig, axes = plt.subplots(1, max(len(tasks), 1), figsize=(5.0 * max(len(tasks), 1), 3.6),
+                             squeeze=False)
+    axes = axes[0]
+    for ax, task in zip(axes, tasks):
+        _plot_tradeoff_ax(ax, [r for r in ok if r.task == task], color_of)
+        ax.set_title(f"{task} (CPU)")
+    axes[0].set_ylabel("score (task metric)")
+
+    # One backend legend (marker shape); model identity is colour + direct label.
     handles = [Line2D([0], [0], marker=m, linestyle="none", color="0.35",
                       markerfacecolor="0.35", markersize=7, label=b)
                for b, m in _BACKEND_MARKERS.items()]
-    ax.legend(handles=handles, title="backend", fontsize=7, title_fontsize=7,
-              frameon=False, loc="lower right")
+    axes[-1].legend(handles=handles, title="backend", fontsize=7,
+                    title_fontsize=7, frameon=False, loc="lower right")
 
     fig.tight_layout()
     fig.savefig(path, dpi=200)
