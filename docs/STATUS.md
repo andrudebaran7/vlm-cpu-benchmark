@@ -73,22 +73,31 @@ The full issue log (I1–I16, with root causes and fixes) is in
 
 ## Pending / future work
 
-- **Quantization for moondream2 / InternVL2.5 — not feasible with standard
-      tooling (investigated, closed).** moondream2 ships only an f16 GGUF (no
-      INT8) and would need the llama.cpp multimodal toolchain; InternVL2.5-2B
-      has no published quantized artifact. Reaching either would mean
-      self-quantizing and building a new runtime path — deferred (see I16).
+_Updated 2026-07-28._
+
+- [ ] **Interactive Streamlit demo** — make the repo practical to try: pick a
+      model, upload an image + question, see the answer with latency / memory /
+      energy. (Planning in progress; note the 6–12 GB RAM footprint rules out
+      free hosted tiers like Streamlit Community Cloud's ~1 GB.) A Gradio demo
+      already exists in `demo/` (3 models, fp32 only).
+- [ ] **Florence-2 INT8 regression on OCRBench** — INT8 was slower, costlier,
+      *and* less accurate than fp32 there (0.383 vs 0.533); worth understanding
+      (quantization quality of the shipped ONNX?).
 - [ ] **Remaining backends declared but unrun:** fp16, OpenVINO INT8,
       GGUF-q4/q8. (No model currently advertises fp16.)
-- [ ] **Larger evaluation:** bigger DocVQA subsample and/or a second task
-      (e.g. OCRBench) for more robust accuracy numbers. Cost is dominated by
-      moondream2 (~215 s/inference).
 - [ ] **YOLO comparison** — the planned "bridge" paper connecting CPU
-      efficiency to detector-substitution accuracy.
+      efficiency to detector-substitution accuracy (highest research value;
+      pairs with the sibling `cv-detection-seg-report`).
 - [ ] **Additional SmolVLM scales** (500M, 2.2B) for a within-family scaling
       curve.
-- [ ] **Florence-2**: only OCR is wired; it has no VQA head, so its DocVQA 0.000
-      is expected (documented, not a bug to "fix").
+- [ ] **Even wider evaluation** — larger N and/or a third task; cost is
+      dominated by moondream2 (~85–216 s/inference by task).
+- [ ] **arXiv submission** — `make arxiv` already builds a self-contained
+      tarball; a `docs/ARXIV_SUBMISSION.md` (as in the sibling repo) remains.
+- **Done:** two-task evaluation (DocVQA + OCRBench, N=120); 2 INT8 backends;
+      RAPL energy; IEEE paper format; reference audit.
+- **Closed (not feasible with standard tooling):** INT8 for moondream2
+      (f16 GGUF only) and InternVL2.5-2B (no quantized artifact) — see I16.
 
 ## Reproducing a run
 
