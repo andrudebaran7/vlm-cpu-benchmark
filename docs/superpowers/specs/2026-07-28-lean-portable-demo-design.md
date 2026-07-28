@@ -8,7 +8,16 @@ Make the benchmark practical to try, and demonstrate the paper's
 CPU-portability thesis, with a **lightweight, torch-free** interactive demo:
 pick a small VLM, upload an image, get an answer with its latency and peak
 RAM. Small enough to run on constrained hosts (target: Streamlit Community
-Cloud's ~1 GB tier and, by extension, a Raspberry Pi 4/5).
+Cloud and, by extension, a Raspberry Pi 4/5).
+
+**Verified host limits (2026-07-29).** Streamlit Community Cloud allocates a
+*variable, shared* per-app budget: RAM **~690 MB (floor) to ~2.7 GB
+(ceiling)**, CPU 0.078–2 cores, storage up to 50 GB — not a fixed 1 GB, and
+subject to change. A Raspberry Pi 4/5 (8 GB) is the more headroom-generous
+target. Implication: our lean footprint must be measured (Step 0) and the
+deploy claim stated from that number — comfortably under ~700–900 MB fits
+Streamlit Cloud reliably; ~1.5–2 GB would run there only intermittently
+(fine on the Pi and locally).
 
 ## Why this is feasible (the motivating finding)
 
@@ -97,11 +106,13 @@ Before building the UI, verify the lean path in a throwaway script:
 2. Measure peak RSS.
 
 **Success criteria for the spike:** both models produce a correct-looking
-answer with no torch import, and peak RSS is comfortably under ~2 GB
-(ideally ≤ ~1.5 GB). If a processor forces torch, apply the manual-preproc
-fallback for that model. If RSS is still too high, record the real number
-and adjust the deploy-target claim (local/HF Spaces instead of the 1 GB
-tier) rather than overclaiming.
+answer with no torch import, and peak RSS is measured. Ideally it lands
+under ~700–900 MB (fits the Streamlit Cloud floor reliably); up to ~2.7 GB
+still fits the Pi and local, and Streamlit Cloud intermittently. If a
+processor forces torch, apply the manual-preproc fallback for that model. If
+RSS is higher than hoped, record the real number and state the honest
+deploy target (Pi / local / HF Spaces) rather than overclaiming the free
+Streamlit tier.
 
 ## Deployment
 
@@ -124,7 +135,8 @@ tier) rather than overclaiming.
 - **Processor pulls torch.** Mitigated by the spike + manual-preproc
   fallback.
 - **RSS higher than hoped.** Mitigated: measure first, then state the true
-  target tier honestly rather than promising the 1 GB tier.
+  target tier honestly (Pi / local are safe; the free Streamlit tier is
+  borderline at ~690 MB–2.7 GB) rather than overpromising.
 - **Cold-start download** on hosted tiers (~0.5 GB). Acceptable; cached
   after first run.
 
