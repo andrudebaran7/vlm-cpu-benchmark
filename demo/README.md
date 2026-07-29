@@ -56,6 +56,17 @@ PyTorch**. Upload one image, ask a question, get the answer with latency and
 peak RAM. One image at a time, no history; the model loads once and memory is
 released after each analysis.
 
+![Demo start screen: title, image uploader, and question box](screenshots/demo-start.png)
+
+Ask a question about any image and get an answer with the measured latency and
+peak RAM — here ~20 s and ~3 GB on CPU, with no PyTorch loaded:
+
+![Demo result: a photo of a person fishing by a lake, answered "Man fishing in a lake." with Latency 20.1 s and Peak RAM 2.98 GB](screenshots/demo-result.png)
+
+The model describes what it sees in free form — no fixed labels:
+
+![Demo answer describing three pit bull dogs sitting side by side](screenshots/demo-dogs.png)
+
 ### Run locally
 
 ```bash
