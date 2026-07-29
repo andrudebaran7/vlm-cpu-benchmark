@@ -18,6 +18,7 @@ Graph signatures (SmolVLM-256M):
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -51,11 +52,13 @@ class OnnxSmolVLM:
 
         so = ort.SessionOptions()
         so.intra_op_num_threads = 0  # let ORT choose
-        # Keep the resident footprint small for portable deployment: the CPU
-        # memory arena pre-reserves large blocks that inflate peak RSS well
-        # beyond the working set.
-        so.enable_cpu_mem_arena = False
-        so.enable_mem_pattern = False
+        # Opt-in low-memory mode (VLMBENCH_ONNX_LOW_MEM=1, e.g. set by the lean
+        # demo): disabling the CPU memory arena trims peak RSS for portable
+        # deployment at a small latency cost. Default keeps the arena on so the
+        # benchmark's measurements are unchanged.
+        if os.environ.get("VLMBENCH_ONNX_LOW_MEM") == "1":
+            so.enable_cpu_mem_arena = False
+            so.enable_mem_pattern = False
 
         def sess(name: str):
             return ort.InferenceSession(

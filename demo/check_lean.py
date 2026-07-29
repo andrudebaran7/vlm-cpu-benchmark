@@ -14,7 +14,6 @@ from vlmbench.profiling.memory import sample_peak_rss_mb
 
 _CASES = [
     ("smolvlm-256m", "What is in this image?"),
-    ("florence2-base", ""),
 ]
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import ctypes
 import ctypes.util
 import gc
+import os
 import time
 
 from vlmbench.models.registry import build_model
@@ -46,6 +47,7 @@ class LeanVLM:
     """Loads SmolVLM-256M once on the torch-free onnx-int8 path."""
 
     def __init__(self) -> None:
+        os.environ.setdefault("VLMBENCH_ONNX_LOW_MEM", "1")
         self._model = build_model(MODEL_KEY)
         self._model.load(backend="onnx-int8", dtype="int8")
 
