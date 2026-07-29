@@ -1,0 +1,13 @@
+# Lean, GPU-free stack for the portable SmolVLM demo (INT8 ONNX, CPU).
+# Do NOT add deep learning frameworks — they pull in large dependencies and blow the footprint.
+onnxruntime>=1.18
+transformers>=4.44,<5
+tokenizers>=0.19
+sentencepiece>=0.2
+protobuf>=4.0
+huggingface-hub>=0.23
+pillow>=10.0
+numpy>=1.24
+streamlit>=1.30
+# The vlmbench package (base install, WITHOUT optional GPU dependencies).
+.
