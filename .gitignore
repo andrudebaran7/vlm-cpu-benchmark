@@ -10,3 +10,6 @@ paper_artifacts/
 
 # vlmbench runtime cache (quantized exports, patched tokenizers)
 .vlmbench_cache/
+
+# per-example score re-run for CIs
+results_ci/
