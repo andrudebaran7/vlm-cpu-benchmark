@@ -52,8 +52,10 @@ class LeanVLM:
     def infer(self, image, prompt: str) -> tuple[str, float, float]:
         image = resize_max_side(image)
         start = time.perf_counter()
-        answer, peak_mb = sample_peak_rss_mb(
-            lambda: self._model.infer(image, prompt))
-        latency_ms = (time.perf_counter() - start) * 1000.0
-        release_memory()
-        return str(answer).strip(), latency_ms, peak_mb
+        try:
+            answer, peak_mb = sample_peak_rss_mb(
+                lambda: self._model.infer(image, prompt))
+            latency_ms = (time.perf_counter() - start) * 1000.0
+            return str(answer).strip(), latency_ms, peak_mb
+        finally:
+            release_memory()
