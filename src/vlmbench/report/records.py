@@ -26,6 +26,9 @@ class CellResult:
     peak_rss_mb: float | None
     energy_j: float | None
     error: str | None
+    # Per-example task scores for the accuracy pass, for bootstrap CIs.
+    # Optional and defaulted so older results files load unchanged.
+    per_example_scores: list[float] | None = None
 
     def key(self) -> tuple[str, str, str]:
         return (self.model, self.backend, self.task)

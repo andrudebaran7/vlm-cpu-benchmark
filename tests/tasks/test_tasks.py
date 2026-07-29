@@ -87,6 +87,7 @@ def test_run_task_scores_predictions():
     examples = [Example(image=None, prompt="cat", answers=["cat"]),
                 Example(image=None, prompt="dog", answers=["fish"])]
     spec = TaskSpec(name="toy", metric=exact_match)
-    score, preds = run_task(model, examples, spec)
+    score, preds, scores = run_task(model, examples, spec)
     assert preds == ["cat", "dog"]
     assert score == 0.5
+    assert scores == [1.0, 0.0]  # per-example scores surfaced for bootstrap CIs

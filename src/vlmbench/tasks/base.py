@@ -29,7 +29,10 @@ def subsample(examples: list[Example], n: int, seed: int) -> list[Example]:
 
 
 def run_task(model: VLModel, examples: list[Example],
-             spec: TaskSpec) -> tuple[float, list[str]]:
+             spec: TaskSpec) -> tuple[float, list[str], list[float]]:
+    """Return ``(mean_score, predictions, per_example_scores)``. The
+    per-example scores are what downstream bootstrap confidence intervals
+    need, so they are surfaced rather than discarded."""
     preds: list[str] = []
     scores: list[float] = []
     for ex in examples:
@@ -37,4 +40,4 @@ def run_task(model: VLModel, examples: list[Example],
         preds.append(pred)
         scores.append(spec.metric(pred, ex.answers))
     mean = sum(scores) / len(scores) if scores else 0.0
-    return mean, preds
+    return mean, preds, scores

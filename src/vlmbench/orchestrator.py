@@ -78,7 +78,7 @@ def _run_cell(model_name, backend, task_name, examples, spec,
         if not backend_supports(model.meta, backend):
             return base(CellStatus.UNSUPPORTED)
         model.load(backend=backend, dtype="float32")
-        score, _preds = run_task(model, examples, spec)
+        score, _preds, scores = run_task(model, examples, spec)
         profile = _profile_first_example(model, examples[0],
                                          config.warmup, config.repeats)
         if mem_limit_mb is not None and profile.peak_rss_mb > mem_limit_mb:
@@ -86,7 +86,8 @@ def _run_cell(model_name, backend, task_name, examples, spec,
         return base(CellStatus.OK, metric_name=spec.name, metric_value=score,
                     infer_ms_mean=profile.infer.mean_ms,
                     infer_ms_p95=profile.infer.p95_ms,
-                    peak_rss_mb=profile.peak_rss_mb, energy_j=profile.energy_j)
+                    peak_rss_mb=profile.peak_rss_mb, energy_j=profile.energy_j,
+                    per_example_scores=scores)
     except MemoryError:
         return base(CellStatus.OOM, error="MemoryError")
     except Exception as exc:  # isolation: never abort the run
