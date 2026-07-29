@@ -1,234 +1,180 @@
-# Lean Portable Streamlit Demo — Implementation Plan
+# Lean Portable Streamlit Demo — Implementation Plan (SmolVLM-only, refined)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A torch-free Streamlit demo that runs SmolVLM-256M (VQA) and Florence-2-base (OCR) in INT8 ONNX on CPU, showing the answer with latency and peak RAM, small enough for constrained hosts (Raspberry Pi; Streamlit Community Cloud borderline).
+**Goal:** A torch-free Streamlit demo that runs **SmolVLM-256M** (visual question answering) in INT8 ONNX on CPU: upload one image, ask a question, get the answer with latency and peak RAM. Memory-disciplined so it runs on modest hardware (Raspberry Pi 8 GB, Oracle Cloud Always-Free ARM 12 GB, HF PRO CPU Space 16 GB, or local).
 
-**Architecture:** Reuse the existing `OnnxSmolVLM` / `OnnxFlorence2` backends through the standard adapters' `onnx-int8` path (which imports no torch). A thin `demo/lean_infer.py` wrapper exposes `LeanVLM.infer(image, prompt) -> (answer, latency_ms, peak_rss_mb)`; `demo/streamlit_app.py` is a thin view over it. A torch-free `requirements-streamlit.txt` pins the deploy stack.
+**Architecture:** Reuse the existing `OnnxSmolVLM` backend through the SmolVLM adapter's `onnx-int8` path (verified torch-free: Task 1 spike ran it with no torch import). A thin `demo/lean_infer.py` wrapper loads the model once, resizes the input, runs one inference, and releases memory back to the OS. `demo/streamlit_app.py` is a thin single-image UI over it.
 
-**Tech Stack:** Python, onnxruntime, transformers (no torch), Pillow, numpy, streamlit, the `vlmbench` package (base install, no `[models]` extra).
+**Tech Stack:** Python, onnxruntime (inference-only — no autograd, no torch), transformers processor (numpy), Pillow, numpy, streamlit; the `vlmbench` package (base install, no `[models]`/torch extra).
 
 ## Global Constraints
 
-- **Torch-free:** no file under `demo/` may import `torch`, and `demo/requirements-streamlit.txt` must not list torch. The onnx-int8 adapter path never imports torch; keep it that way.
-- **INT8 ONNX only**, exactly two models: `smolvlm-256m` and `florence2-base` (`backend="onnx-int8"`).
-- **Reuse, don't reimplement:** inference goes through `build_model(key).load(backend="onnx-int8", ...)` + `.infer(image, prompt)`; peak RSS via `vlmbench.profiling.memory.sample_peak_rss_mb`.
-- **Honest footprint:** report the *measured* peak RSS; state the deploy target from that number (Pi/local safe; free Streamlit tier is ~690 MB–2.7 GB, borderline).
-- Run all Python via the repo venv: `.venv/bin/python` and `.venv/bin/pytest` (or `.venv/bin/python -m pytest`).
+- **Torch-free:** no file under `demo/` may import `torch`; `demo/requirements-streamlit.txt` must not list torch (and must not list `timm`/`torchvision`, which pull torch). The onnx-int8 SmolVLM path is torch-free; keep it that way. (ONNX Runtime is inference-only, so there is no gradient state to disable — "no grad" is inherent.)
+- **One model:** SmolVLM-256M only, `backend="onnx-int8"`. Florence-2 is out of scope here (its trust_remote_code processor hard-requires torch).
+- **Memory discipline (the point of this demo):**
+  - Load the model **once** and cache it (`@st.cache_resource`) — never per interaction.
+  - **Resize** each uploaded image to at most 512×512 before inference (bounds the input; note it does not lower the ~2.4 GB peak, which is set by SmolVLM's fixed 17-sub-image vision encoding).
+  - After each inference, **release**: drop references and call `gc.collect()` then glibc `malloc_trim(0)` to return freed memory to the OS. Keeps steady-state RSS low between runs.
+  - **No history:** one image at a time, no accumulation of past images/answers.
+- **Honest footprint:** peak RSS per inference is ~2.4 GB (measured, torch-free). Fits Pi 8 GB / Oracle A1 12 GB / HF PRO 16 GB / local; NOT the ~1 GB Streamlit Community Cloud or 512 MB Render free tiers.
+- **Reuse, don't reimplement** inference: `build_model("smolvlm-256m").load(backend="onnx-int8", ...)` + `.infer(image, prompt)`; peak RSS via `vlmbench.profiling.memory.sample_peak_rss_mb`.
+- Run all Python via `.venv/bin/python` / `.venv/bin/python -m pytest`.
 
----
+## Status of Task 1 (already done)
 
-### Task 1: Feasibility spike — verify torch-free inference and measure RSS
-
-De-risks the whole design: confirms the onnx-int8 adapter path runs both models without importing torch, and records the real peak RSS. Produces a keepable smoke/portability check.
-
-**Files:**
-- Create: `demo/check_lean.py`
-
-**Interfaces:**
-- Consumes: `vlmbench.models.registry.build_model`, `vlmbench.profiling.memory.sample_peak_rss_mb`.
-- Produces: nothing importable; a runnable check that prints per-model `answer`, `peak_rss_mb`, and a torch-free assertion.
-
-- [ ] **Step 1: Write the check script**
-
-Create `demo/check_lean.py`:
-
-```python
-"""Portability spike: run the two demo models on the torch-free onnx-int8
-path, assert no torch import, and print peak RSS. Run manually:
-
-    .venv/bin/python demo/check_lean.py
-"""
-from __future__ import annotations
-
-import sys
-
-from PIL import Image
-
-from vlmbench.models.registry import build_model
-from vlmbench.profiling.memory import sample_peak_rss_mb
-
-_CASES = [
-    ("smolvlm-256m", "What is in this image?"),
-    ("florence2-base", ""),
-]
-
-
-def main() -> None:
-    img = Image.new("RGB", (512, 512), (120, 120, 120))
-    for key, prompt in _CASES:
-        model = build_model(key)
-        model.load(backend="onnx-int8", dtype="int8")
-        answer, peak_mb = sample_peak_rss_mb(lambda: model.infer(img, prompt))
-        torch_loaded = "torch" in sys.modules
-        print(f"{key:16} peak_rss={peak_mb:.0f} MB  torch_imported={torch_loaded}  "
-              f"answer={answer!r:.60}")
-        assert not torch_loaded, f"{key}: torch was imported on the onnx path!"
-    print("OK: both models ran torch-free.")
-
-
-if __name__ == "__main__":
-    main()
-```
-
-- [ ] **Step 2: Run the spike**
-
-Run: `.venv/bin/python demo/check_lean.py`
-Expected: both lines print an `answer`, `torch_imported=False`, and a `peak_rss` number; final line `OK: both models ran torch-free.`
-
-Record the two `peak_rss` numbers — they set the honest deploy target in Task 4.
-
-- [ ] **Step 3: Decision gate**
-
-- If `torch_imported=True` for a model, its `AutoProcessor` pulls torch: note it; Task 2 must add a manual PIL+numpy preprocessing path for that model (fallback from the spec). Do not proceed to Task 3 for that model until torch-free.
-- If both are `False`, proceed as planned.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add demo/check_lean.py
-git commit -m "demo: add torch-free portability spike for the lean demo"
-```
+Task 1 (feasibility spike, `demo/check_lean.py`, commit `9012c91`) is COMPLETE and confirmed SmolVLM runs torch-free on the onnx-int8 path at ~2.4 GB peak (with `enable_cpu_mem_arena=False`, added to `OnnxSmolVLM`). Do not redo it. Florence was found blocked and dropped from scope.
 
 ---
 
 ### Task 2: Lean inference wrapper (`demo/lean_infer.py`)
 
-The small, testable surface the UI calls. Holds the demo's model list and a `LeanVLM` that loads one model on the onnx-int8 path and times/measures one inference.
+The small, testable surface the UI calls: load SmolVLM once on the torch-free onnx-int8 path, resize the image, run one inference, release memory.
 
 **Files:**
 - Create: `demo/lean_infer.py`
-- Create: `demo/__init__.py` (empty; makes `demo` importable as a package for tests)
-- Test: `tests/demo/__init__.py` (empty), `tests/demo/test_lean_infer.py`
+- Create: `demo/__init__.py` (empty), `tests/demo/__init__.py` (empty)
+- Test: `tests/demo/test_lean_infer.py`
 
 **Interfaces:**
-- Consumes: `build_model`, `sample_peak_rss_mb` (as in Task 1).
+- Consumes: `vlmbench.models.registry.build_model`, `vlmbench.profiling.memory.sample_peak_rss_mb`.
 - Produces:
-  - `DemoModel(key: str, label: str, needs_prompt: bool, default_prompt: str)` (frozen dataclass).
-  - `DEMO_MODELS: tuple[DemoModel, ...]`.
-  - `demo_model(key: str) -> DemoModel` (raises `KeyError` on unknown key).
-  - `LeanVLM(key: str)` with `.infer(image, prompt: str) -> tuple[str, float, float]` returning `(answer, latency_ms, peak_rss_mb)`.
+  - `MODEL_KEY: str = "smolvlm-256m"`, `MAX_SIDE: int = 512`.
+  - `resize_max_side(image, max_side=MAX_SIDE) -> PIL.Image.Image` — returns the image scaled so its longest side is ≤ `max_side` (no upscaling), preserving aspect ratio.
+  - `release_memory() -> None` — `gc.collect()` then best-effort glibc `malloc_trim(0)` (must not raise on non-glibc platforms).
+  - `LeanVLM()` with `.infer(image, prompt: str) -> tuple[str, float, float]` returning `(answer, latency_ms, peak_rss_mb)`; resizes the image, runs one inference, releases memory afterwards.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
-Create `tests/demo/__init__.py` (empty) and `demo/__init__.py` (empty). Then create `tests/demo/test_lean_infer.py`:
+Create `demo/__init__.py` and `tests/demo/__init__.py` (both empty). Then `tests/demo/test_lean_infer.py`:
 
 ```python
-import pytest
+from PIL import Image
 
-from demo.lean_infer import DEMO_MODELS, demo_model
-
-
-def test_demo_models_are_the_two_lean_int8_models():
-    assert [m.key for m in DEMO_MODELS] == ["smolvlm-256m", "florence2-base"]
+from demo.lean_infer import MAX_SIDE, MODEL_KEY, release_memory, resize_max_side
 
 
-def test_smolvlm_needs_a_prompt_florence_does_not():
-    assert demo_model("smolvlm-256m").needs_prompt is True
-    assert demo_model("florence2-base").needs_prompt is False
-    assert demo_model("smolvlm-256m").default_prompt  # non-empty
+def test_model_key_is_smolvlm():
+    assert MODEL_KEY == "smolvlm-256m"
 
 
-def test_demo_model_unknown_key_raises():
-    with pytest.raises(KeyError):
-        demo_model("moondream2")
+def test_resize_scales_long_side_down_preserving_aspect():
+    img = Image.new("RGB", (2048, 1024))
+    out = resize_max_side(img, max_side=512)
+    assert max(out.size) == 512
+    assert out.size == (512, 256)  # aspect preserved
+
+
+def test_resize_does_not_upscale_small_images():
+    img = Image.new("RGB", (300, 200))
+    out = resize_max_side(img, max_side=512)
+    assert out.size == (300, 200)
+
+
+def test_release_memory_is_safe_to_call():
+    release_memory()  # must not raise on any platform
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
 Run: `.venv/bin/python -m pytest tests/demo/test_lean_infer.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'demo.lean_infer'` (or import error).
+Expected: FAIL with `ModuleNotFoundError: No module named 'demo.lean_infer'`.
 
 - [ ] **Step 3: Write the implementation**
 
 Create `demo/lean_infer.py`:
 
 ```python
-"""Torch-free inference wrapper for the lean/portable demo.
+"""Torch-free, memory-disciplined inference for the lean SmolVLM demo.
 
-Runs the two small models through the standard adapters' ``onnx-int8`` path,
-which imports no torch (verified by demo/check_lean.py). Kept tiny so the
-Streamlit app is a thin view over it.
+Runs SmolVLM-256M through the standard adapter's ``onnx-int8`` path (ONNX
+Runtime, no torch, no autograd). Loads the model once; the caller resizes the
+image and releases memory after each inference.
 """
 from __future__ import annotations
 
+import ctypes
+import ctypes.util
+import gc
 import time
-from dataclasses import dataclass
 
 from vlmbench.models.registry import build_model
 from vlmbench.profiling.memory import sample_peak_rss_mb
 
-
-@dataclass(frozen=True)
-class DemoModel:
-    key: str
-    label: str
-    needs_prompt: bool
-    default_prompt: str
+MODEL_KEY = "smolvlm-256m"
+MAX_SIDE = 512
 
 
-DEMO_MODELS: tuple[DemoModel, ...] = (
-    DemoModel("smolvlm-256m", "SmolVLM-256M — ask a question about the image",
-              True, "What is in this image?"),
-    DemoModel("florence2-base", "Florence-2 — read the text (OCR)",
-              False, ""),
-)
+def resize_max_side(image, max_side: int = MAX_SIDE):
+    """Scale ``image`` down so its longest side is <= ``max_side`` (never up)."""
+    w, h = image.size
+    longest = max(w, h)
+    if longest <= max_side:
+        return image
+    scale = max_side / longest
+    return image.resize((round(w * scale), round(h * scale)))
 
 
-def demo_model(key: str) -> DemoModel:
-    for m in DEMO_MODELS:
-        if m.key == key:
-            return m
-    raise KeyError(key)
+def release_memory() -> None:
+    """Return freed heap back to the OS (glibc); no-op elsewhere."""
+    gc.collect()
+    libc_name = ctypes.util.find_library("c")
+    if not libc_name:
+        return
+    try:
+        libc = ctypes.CDLL(libc_name)
+        if hasattr(libc, "malloc_trim"):
+            libc.malloc_trim(0)
+    except OSError:
+        pass
 
 
 class LeanVLM:
-    """Loads one model on the torch-free onnx-int8 path and runs inference."""
+    """Loads SmolVLM-256M once on the torch-free onnx-int8 path."""
 
-    def __init__(self, key: str) -> None:
-        demo_model(key)  # validate
-        self._model = build_model(key)
+    def __init__(self) -> None:
+        self._model = build_model(MODEL_KEY)
         self._model.load(backend="onnx-int8", dtype="int8")
 
     def infer(self, image, prompt: str) -> tuple[str, float, float]:
+        image = resize_max_side(image)
         start = time.perf_counter()
         answer, peak_mb = sample_peak_rss_mb(
             lambda: self._model.infer(image, prompt))
         latency_ms = (time.perf_counter() - start) * 1000.0
+        release_memory()
         return str(answer).strip(), latency_ms, peak_mb
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Run tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/demo/test_lean_infer.py -v`
-Expected: PASS (3 tests).
+Expected: PASS (4 tests).
 
-- [ ] **Step 5: Verify the whole fast suite still passes**
+- [ ] **Step 5: Run the fast suite**
 
 Run: `.venv/bin/python -m pytest -q -m 'not slow'`
-Expected: all pass (previous count + 3).
+Expected: all pass.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add demo/__init__.py demo/lean_infer.py tests/demo/__init__.py tests/demo/test_lean_infer.py
-git commit -m "demo: lean torch-free inference wrapper (LeanVLM)"
+git commit -m "demo: lean torch-free SmolVLM wrapper (resize, load-once, release memory)"
 ```
 
 ---
 
 ### Task 3: Streamlit app and lean requirements
 
-The UI plus the torch-free deploy stack. The app is a thin view over `LeanVLM`; a smoke test guards that no demo file imports torch.
+The single-image UI plus the torch-free deploy stack. A smoke test guards that no demo file imports torch.
 
 **Files:**
-- Create: `demo/streamlit_app.py`
-- Create: `demo/requirements-streamlit.txt`
+- Create: `demo/streamlit_app.py`, `demo/requirements-streamlit.txt`
 - Test: `tests/demo/test_no_torch.py`
 
 **Interfaces:**
-- Consumes: `demo.lean_infer.DEMO_MODELS`, `demo.lean_infer.demo_model`, `demo.lean_infer.LeanVLM`.
-- Produces: a runnable Streamlit entrypoint; no importable API.
+- Consumes: `demo.lean_infer.LeanVLM`.
 
 - [ ] **Step 1: Write the failing guard test**
 
@@ -257,23 +203,24 @@ def test_no_demo_file_imports_torch():
     assert offenders == set(), f"demo files import torch: {offenders}"
 
 
-def test_streamlit_requirements_have_no_torch():
+def test_streamlit_requirements_exclude_torch_stack():
     req = (_DEMO / "requirements-streamlit.txt").read_text().lower()
-    assert "torch" not in req
+    for banned in ("torch", "timm", "torchvision"):
+        assert banned not in req, f"{banned} must not be in the lean requirements"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/demo/test_no_torch.py -v`
-Expected: FAIL — `requirements-streamlit.txt` does not exist yet (FileNotFoundError) / or streamlit_app not present.
+Expected: FAIL — `requirements-streamlit.txt` does not exist (FileNotFoundError).
 
 - [ ] **Step 3: Write the lean requirements**
 
 Create `demo/requirements-streamlit.txt`:
 
 ```text
-# Lean, torch-free stack for the portable Streamlit demo.
-# INT8 ONNX inference only; no PyTorch, no CUDA.
+# Lean, torch-free stack for the portable SmolVLM demo (INT8 ONNX, CPU).
+# Do NOT add torch / timm / torchvision — they pull PyTorch and blow the footprint.
 onnxruntime>=1.18
 transformers>=4.44,<5
 tokenizers>=0.19
@@ -283,8 +230,7 @@ huggingface-hub>=0.23
 pillow>=10.0
 numpy>=1.24
 streamlit>=1.30
-# The vlmbench package itself (base install, WITHOUT the [models]/torch extra).
-# When deploying a mirror/checkout, this installs src/vlmbench from the repo root.
+# The vlmbench package (base install, WITHOUT the [models]/torch extra).
 .
 ```
 
@@ -293,8 +239,11 @@ streamlit>=1.30
 Create `demo/streamlit_app.py`:
 
 ```python
-"""Lean, portable VLM demo: SmolVLM-256M (VQA) and Florence-2 (OCR) on CPU,
+"""Lean, portable SmolVLM-256M demo: ask a question about one image, on CPU,
 INT8 ONNX, no PyTorch. Run: streamlit run demo/streamlit_app.py
+
+One image at a time, no history. The model loads once and is cached; memory
+is released after each analysis.
 """
 import pathlib
 import sys
@@ -304,39 +253,36 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import streamlit as st  # noqa: E402
 from PIL import Image  # noqa: E402
 
-from lean_infer import DEMO_MODELS, LeanVLM, demo_model  # noqa: E402
+from lean_infer import LeanVLM  # noqa: E402
 
 
-@st.cache_resource(show_spinner="Loading model (first run downloads ~250 MB)…")
-def _load(key: str) -> LeanVLM:
-    return LeanVLM(key)
+@st.cache_resource(show_spinner="Loading SmolVLM (first run downloads ~250 MB)…")
+def _model() -> LeanVLM:
+    return LeanVLM()
 
 
-st.set_page_config(page_title="Small VLMs on CPU", page_icon="\U0001f9e9")
-st.title("Small VLMs on CPU — lean & portable")
-st.caption("SmolVLM-256M and Florence-2 run here in INT8 ONNX — no GPU, no "
+st.set_page_config(page_title="SmolVLM on CPU", page_icon="\U0001f9e9")
+st.title("SmolVLM-256M on CPU — lean & portable")
+st.caption("Ask a question about an image. Runs in INT8 ONNX — no GPU, no "
            "PyTorch. Small enough for a Raspberry Pi.")
 
-label_to_key = {m.label: m.key for m in DEMO_MODELS}
-label = st.radio("Model", list(label_to_key))
-key = label_to_key[label]
-model = demo_model(key)
+uploaded = st.file_uploader("Image", type=["png", "jpg", "jpeg", "webp"],
+                            accept_multiple_files=False)
+prompt = st.text_input("Question", "What is in this image?")
 
-uploaded = st.file_uploader("Image", type=["png", "jpg", "jpeg", "webp"])
-prompt = st.text_input("Question", model.default_prompt) if model.needs_prompt else ""
-
-if uploaded is not None and st.button("Run", type="primary"):
+if uploaded is not None:
     image = Image.open(uploaded).convert("RGB")
     st.image(image, use_container_width=True)
-    with st.spinner("Running on CPU…"):
-        answer, latency_ms, peak_mb = _load(key).infer(image, prompt)
-    st.subheader("Answer")
-    st.write(answer or "_(empty)_")
-    c1, c2 = st.columns(2)
-    c1.metric("Latency", f"{latency_ms / 1000:.1f} s")
-    c2.metric("Peak RAM", f"{peak_mb / 1024:.2f} GB")
-    st.caption("Peak RAM is the whole-process resident set — the portability "
-               "number. No PyTorch is loaded.")
+    if st.button("Analyze", type="primary"):
+        with st.spinner("Running on CPU…"):
+            answer, latency_ms, peak_mb = _model().infer(image, prompt)
+        st.subheader("Answer")
+        st.write(answer or "_(empty)_")
+        c1, c2 = st.columns(2)
+        c1.metric("Latency", f"{latency_ms / 1000:.1f} s")
+        c2.metric("Peak RAM", f"{peak_mb / 1024:.2f} GB")
+        st.caption("Peak RAM is the whole-process resident set. No PyTorch is "
+                   "loaded; memory is released after each analysis.")
 ```
 
 - [ ] **Step 5: Run the guard test to verify it passes**
@@ -344,7 +290,7 @@ if uploaded is not None and st.button("Run", type="primary"):
 Run: `.venv/bin/python -m pytest tests/demo/test_no_torch.py -v`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Verify the app parses and its imports resolve (no execution)**
+- [ ] **Step 6: Verify the app parses**
 
 Run: `.venv/bin/python -c "import ast; ast.parse(open('demo/streamlit_app.py').read()); print('parse ok')"`
 Expected: `parse ok`
@@ -353,31 +299,29 @@ Expected: `parse ok`
 
 ```bash
 git add demo/streamlit_app.py demo/requirements-streamlit.txt tests/demo/test_no_torch.py
-git commit -m "demo: Streamlit app + lean torch-free requirements"
+git commit -m "demo: single-image Streamlit app + lean torch-free requirements"
 ```
 
 ---
 
 ### Task 4: README and deploy documentation
 
-Document how to run the lean demo, deploy it, and the measured footprint (from Task 1). Update the existing `demo/README.md` (currently Gradio-only).
+Document running and deploying the lean demo, with the honest footprint and the free/paid host options.
 
 **Files:**
 - Modify: `demo/README.md`
 
-**Interfaces:** none (docs).
+- [ ] **Step 1: Append the lean-demo section**
 
-- [ ] **Step 1: Append the lean-demo section to the README**
-
-Add to `demo/README.md` (keep the existing Gradio section; add below it). Fill `<SMOLVLM_RSS>` / `<FLORENCE_RSS>` with the numbers recorded in Task 1, Step 2:
+Add to `demo/README.md` (keep the existing Gradio section; add below it). Use the measured peak from Task 1 (~2.4 GB) — if a more exact number is on record, use it:
 
 ```markdown
-## Lean, portable Streamlit demo (torch-free)
+## Lean, portable Streamlit demo (SmolVLM, torch-free)
 
-A second demo runs the two smallest models in **INT8 ONNX with no PyTorch**,
-so it fits constrained hardware. It exposes SmolVLM-256M (ask a question) and
-Florence-2-base (read the text / OCR), showing the answer with latency and
-peak RAM.
+A single-image demo of **SmolVLM-256M** running in **INT8 ONNX with no
+PyTorch**. Upload one image, ask a question, get the answer with latency and
+peak RAM. One image at a time, no history; the model loads once and memory is
+released after each analysis.
 
 ### Run locally
 
@@ -386,47 +330,42 @@ python -m pip install -r demo/requirements-streamlit.txt   # no torch
 streamlit run demo/streamlit_app.py
 ```
 
-First run downloads ~0.25 GB of INT8 ONNX weights per model from the Hub.
+First run downloads ~0.25 GB of INT8 ONNX weights from the Hub.
 
 ### Measured footprint
 
-Peak resident memory on this machine (torch-free onnx-int8 path):
-SmolVLM-256M ≈ `<SMOLVLM_RSS>` MB, Florence-2 ≈ `<FLORENCE_RSS>` MB —
-versus 6–12 GB through the full PyTorch stack in the benchmark. The weights
-are ~250 MB each; the rest is runtime.
+Peak resident memory per inference on this machine (torch-free onnx-int8):
+**~2.4 GB** — versus 6–12 GB through the full PyTorch stack. The weights are
+~250 MB; the rest is the vision encoder's activation memory (SmolVLM splits
+each image into 17 sub-images). Resizing the input bounds it but does not
+lower this peak; memory is returned to the OS (`malloc_trim`) after each run.
 
-### Where it runs
+### Where it runs (fits ~2.4 GB)
 
-- **Local / Raspberry Pi 4/5 (8 GB):** comfortably — the recommended target
-  (ARM builds of onnxruntime work; inference is slower than x86 but fits).
-- **Streamlit Community Cloud:** the free tier allocates a *variable* ~690 MB–
-  2.7 GB per app. It fits when the measured footprint is under ~700–900 MB and
-  the app has headroom; under contention it may be throttled. Point the app at
-  `demo/streamlit_app.py` with `demo/requirements-streamlit.txt`.
-- **Not included:** Moondream2 and InternVL2.5-2B — no INT8 artifact and
-  ~4 GB of weights, so they stay in the CLI benchmark, not the lean demo.
+- **Local / Raspberry Pi 4/5 (8 GB):** the recommended target — ARM builds of
+  onnxruntime work; slower than x86 but fits.
+- **Oracle Cloud Always-Free (Ampere A1, 12 GB ARM):** a free public host that
+  fits comfortably and reinforces the ARM-portability story (VM setup + Oracle
+  A1 capacity permitting).
+- **Hugging Face Spaces (CPU Basic, 16 GB):** fits, but creating a compute
+  Space now requires a PRO plan.
+- **Too small (do not use):** Streamlit Community Cloud (~1 GB) and Render free
+  (512 MB).
+- **Not included:** Moondream2 / InternVL2.5-2B (no INT8 artifact, ~4 GB
+  weights) and Florence-2 (its remote processor hard-requires torch).
 ```
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add demo/README.md
-git commit -m "docs: document the lean/portable Streamlit demo and its footprint"
+git commit -m "docs: document the lean SmolVLM Streamlit demo, footprint, and hosts"
 ```
 
 ---
 
 ## Self-Review
 
-**Spec coverage:**
-- Torch-free onnx path + measure RSS → Task 1 (spike) + Task 2 (wrapper). ✓
-- Two models selectable (SmolVLM VQA, Florence OCR) → `DEMO_MODELS` (Task 2), UI radio (Task 3). ✓
-- `demo/lean_infer.py`, `demo/streamlit_app.py`, `demo/requirements-streamlit.txt`, README → Tasks 2–4. ✓
-- Out of scope (moondream/internvl, GPU, benchmark UI) → excluded; noted in README. ✓
-- Honest deploy target from measured number → Task 1 records it, Task 4 states it. ✓
-- Feasibility spike gated before UI → Task 1 with a decision gate before Task 3. ✓
-- Manual-preproc fallback → called out in Task 1 Step 3 gate (only if a processor pulls torch).
-
-**Placeholder scan:** `<SMOLVLM_RSS>` / `<FLORENCE_RSS>` are the one intentional fill-in, sourced from a concrete measurement step (Task 1 Step 2) — acceptable.
-
-**Type consistency:** `LeanVLM.infer -> (str, float, float)` used consistently; `demo_model` raises `KeyError`; `DEMO_MODELS` keys match the two backends declared onnx-int8-capable (`smolvlm-256m`, `florence2-base`).
+**Spec coverage:** SmolVLM-only torch-free onnx path (Task 1 done + Task 2); resize/load-once/release/no-history (Task 2 + Task 3 constraints); single-image UI (Task 3); requirements + no-torch guard (Task 3); honest footprint + hosts (Task 4). ✓
+**Placeholder scan:** none (the ~2.4 GB number is the measured Task 1 value). ✓
+**Type consistency:** `LeanVLM.infer -> (str, float, float)`; `resize_max_side`/`release_memory` signatures match tests. ✓

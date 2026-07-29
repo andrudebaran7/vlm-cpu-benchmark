@@ -51,6 +51,11 @@ class OnnxSmolVLM:
 
         so = ort.SessionOptions()
         so.intra_op_num_threads = 0  # let ORT choose
+        # Keep the resident footprint small for portable deployment: the CPU
+        # memory arena pre-reserves large blocks that inflate peak RSS well
+        # beyond the working set.
+        so.enable_cpu_mem_arena = False
+        so.enable_mem_pattern = False
 
         def sess(name: str):
             return ort.InferenceSession(
