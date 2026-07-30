@@ -13,6 +13,12 @@ def _fmt(value) -> str:
     return "n/a" if value is None else (f"{value:.3f}" if isinstance(value, float) else str(value))
 
 
+def _fmt_int(value) -> str:
+    """Round a wide numeric column (ms / MB / J) to an integer; the
+    sub-unit decimals are noise and widen the table."""
+    return "n/a" if value is None else f"{value:.0f}"
+
+
 def _tex(s: str) -> str:
     """Escape LaTeX-special characters in a text cell (e.g. underscores in
     model ids like ``internvl2_5-2b``)."""
@@ -33,9 +39,9 @@ def latex_results_table(results: list[CellResult], task: str | None = None) -> s
     for r in rows:
         if r.status is CellStatus.OK:
             metric = _fmt(r.metric_value)
-            infer = _fmt(r.infer_ms_mean)
-            peak = _fmt(r.peak_rss_mb)
-            energy = _fmt(r.energy_j)
+            infer = _fmt_int(r.infer_ms_mean)
+            peak = _fmt_int(r.peak_rss_mb)
+            energy = _fmt_int(r.energy_j)
         else:
             metric = infer = peak = energy = f"\\text{{{r.status.value}}}"
         cells = [_tex(r.model), _tex(r.backend)]
