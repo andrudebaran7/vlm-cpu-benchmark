@@ -15,34 +15,30 @@ whether it **needs a model re-run** (the expensive constraint — Moondream2 is
 
 ## Quick wins (do first — mostly 🟢)
 
-- [ ] **QW1 · Reproducibility-failure taxonomy (Section V).** 🟢 low-effort,
-  high-differentiator. Restructure the discussion's environment findings into a
-  named taxonomy (dependency drift, tokenizer corruption, missing artifacts,
-  API instability), each with the concrete instance we hit. This is our unique
-  angle and the review's #4 "formalize reproducibility cost." Pure prose.
-- [ ] **QW2 · Energy → cost / normalization.** 🟢 low-effort. We already report
-  J/inference; add derived cost (€/1k inferences at a stated kWh price) and a
-  per-task J/inference framing. Answers review weakness #5. Pure arithmetic on
-  existing `energy_j`. (Note: J/**token** needs generated-token counts we do
-  not currently store — either estimate at the 64-token cap or skip.)
-- [ ] **QW3 · Composite efficiency score (supplementary).** 🟢 low-effort, use
-  with care. Add `Efficiency = Accuracy / (Latency × Memory)` (or normalized)
-  as a *supplementary* column/caption, NOT the headline — a single number hides
-  the accuracy/efficiency trade-off the paper deliberately exposes. Pure
-  arithmetic.
+_Done 2026-07-30 (merged to both repos): QW1, QW2, QW3, W1, W2, ST1, ST2.
+Also split Table I into per-task tables and kept the figure error-bar-free
+(CIs live in a "Statistical reliability" prose paragraph). Paper is 7 pages._
+
+- [x] **QW1 · Reproducibility-failure taxonomy (Section V).** DONE. Section V
+  opens with a named taxonomy (version drift, undeclared deps, corrupt
+  artifacts, silent wrong-typed failures, missing artifacts), offered as a
+  reusable checklist.
+- [x] **QW2 · Energy → cost / normalization.** DONE. Added EUR/1k-inference
+  cost at a stated 0.25 EUR/kWh; kept the honest "energy follows latency"
+  caveat. (J/token skipped — token counts not stored.)
+- [x] **QW3 · Composite efficiency score (supplementary).** DONE as a prose
+  sentence (E = acc/(latency×memory)); explicitly framed as a summary that
+  does not replace the per-axis tables.
 
 ## Statistical rigor (review's #2/#3 — the most defensible criticism)
 
-- [ ] **ST1 · Save per-example scores.** 🟢 (code only). `run_task` computes
-  per-example scores then discards them; extend it + `CellResult` +
-  `results.jsonl` to persist them. Prerequisite for any bootstrap CI. Cheap
-  code change; no re-run to *add the capability*.
-- [ ] **ST2 · Bootstrap CIs + error bars / boxplots.** 🟡 needs a re-run to
-  populate per-example scores (fast models cheap: Florence ~5 min, InternVL
-  ~20–30 min, SmolVLM ~30–55 min per task; Moondream2 is the multi-hour
-  bottleneck). Once data exists, CIs and boxplots are pure post-processing.
-  Decision needed: re-run all four, or report CIs for the three fast models and
-  cite Moondream2's N=120 mean as-is.
+- [x] **ST1 · Save per-example scores.** DONE. `run_task` returns them,
+  `CellResult.per_example_scores` persists them (defaulted, back-compatible).
+- [x] **ST2 · Bootstrap CIs.** DONE. Re-ran the three fast models (Moondream2
+  kept as point estimate); `report/stats.py` bootstrap; CIs reported in a
+  "Statistical reliability" paragraph. Findings: SmolVLM INT8 gain on DocVQA
+  is real (intervals clear); OCRBench top-three (Moondream2/InternVL/Florence)
+  is a statistical tie — prose corrected accordingly.
 
 ## Big lever (review's #1 — the central missing piece)
 
@@ -78,10 +74,10 @@ whether it **needs a model re-run** (the expensive constraint — Moondream2 is
 
 ## Writing polish (review's §"Mejoras de escritura") — 🟢 all prose
 
-- [ ] **W1** Trim the abstract ~15%; lead with the contribution.
-- [ ] **W2** Add a sharp claim to the intro (e.g. "published VLM efficiency
-  claims are not comparable under CPU constraints").
-- [ ] **W3** Restructure discussion as *findings → implications*.
+- [x] **W1** DONE. Abstract trimmed 302→199 words, leads with the contribution.
+- [x] **W2** DONE. Intro now states "published VLM efficiency figures are not
+  comparable under CPU constraints" as the central claim.
+- [x] **W3** Discussion already reads findings→implications; left as is.
 - [ ] **W4** (optional) more pointed title, e.g. "Do Small VLMs Replace
   Detectors on CPU? A Reproducible Benchmark."
 
