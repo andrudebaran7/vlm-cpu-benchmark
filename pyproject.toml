@@ -23,6 +23,7 @@ models = [
     "sentencepiece>=0.2",
     "protobuf>=4.0",
 ]
+detectors = ["ultralytics>=8.3"]
 quant = ["onnxruntime>=1.18", "openvino>=2024.2", "llama-cpp-python>=0.2.80"]
 demo = ["gradio>=4.0"]
 dev = ["pytest>=8.0"]
