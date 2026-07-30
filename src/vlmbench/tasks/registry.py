@@ -3,7 +3,7 @@ from __future__ import annotations
 from .base import Example, TaskSpec
 from .metrics import anls
 
-KNOWN_TASKS: tuple[str, ...] = ("sample", "docvqa", "ocrbench")
+KNOWN_TASKS: tuple[str, ...] = ("sample", "docvqa", "ocrbench", "presence-coco")
 
 
 def known_tasks() -> tuple[str, ...]:
@@ -22,4 +22,7 @@ def build_task(name: str) -> "tuple[list[Example], TaskSpec]":
     if name == "ocrbench":
         from .ocrbench import load_ocrbench
         return load_ocrbench()
+    if name == "presence-coco":
+        from .presence import load_presence
+        return load_presence("coco")
     raise ValueError(f"unknown task: {name!r}; known: {sorted(KNOWN_TASKS)}")
