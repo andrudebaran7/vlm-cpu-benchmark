@@ -17,8 +17,14 @@ def main() -> None:
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     save_tradeoff_plot(results, out / "tradeoff.png")
+    # Combined table (kept for reference) plus one per-task table, which the
+    # paper prefers for readability (they mirror the two figure panels).
     (out / "results_table.tex").write_text(latex_results_table(results))
-    print(f"wrote figures/tables to {out}")
+    tasks = sorted({r.task for r in results})
+    for task in tasks:
+        (out / f"results_table_{task}.tex").write_text(
+            latex_results_table(results, task=task))
+    print(f"wrote figures/tables to {out} (per-task tables: {tasks})")
 
 
 if __name__ == "__main__":

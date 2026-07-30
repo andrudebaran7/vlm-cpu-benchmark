@@ -7,19 +7,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from .records import CellResult, CellStatus
-from .stats import bootstrap_ci
 
 
 def _fmt(value) -> str:
     return "n/a" if value is None else (f"{value:.3f}" if isinstance(value, float) else str(value))
-
-
-def _ci_str(result: CellResult) -> str:
-    """Bootstrap 95% CI on the metric, from per-example scores; ``---`` when
-    scores were not recorded (e.g. Moondream2 was not re-run for CIs)."""
-    scores = getattr(result, "per_example_scores", None)
-    ci = bootstrap_ci(scores) if scores else None
-    return "---" if ci is None else f"[{ci[0]:.3f}, {ci[1]:.3f}]"
 
 
 def _tex(s: str) -> str:
@@ -28,22 +19,30 @@ def _tex(s: str) -> str:
     return str(s).replace("\\", r"\textbackslash{}").replace("_", r"\_").replace("&", r"\&")
 
 
-def latex_results_table(results: list[CellResult]) -> str:
-    header = "\\begin{tabular}{lllrlrrr}\n\\toprule\n"
-    header += ("model & backend & task & metric & metric 95\\% CI & infer\\_ms "
-               "& peak\\_mb & energy\\_j \\\\\n\\midrule\n")
+def latex_results_table(results: list[CellResult], task: str | None = None) -> str:
+    """Render a booktabs results table. If ``task`` is given, only that task's
+    cells are shown and the (now-constant) task column is omitted."""
+    rows = [r for r in results if task is None or r.task == task]
+    if task is None:
+        colspec, head = "lllrrrr", "model & backend & task & metric"
+    else:
+        colspec, head = "llrrrr", "model & backend & metric"
+    header = (f"\\begin{{tabular}}{{{colspec}}}\n\\toprule\n"
+              f"{head} & infer\\_ms & peak\\_mb & energy\\_j \\\\\n\\midrule\n")
     lines = []
-    for r in results:
+    for r in rows:
         if r.status is CellStatus.OK:
             metric = _fmt(r.metric_value)
-            ci = _ci_str(r)
             infer = _fmt(r.infer_ms_mean)
             peak = _fmt(r.peak_rss_mb)
             energy = _fmt(r.energy_j)
         else:
-            metric = ci = infer = peak = energy = f"\\text{{{r.status.value}}}"
-        lines.append(f"{_tex(r.model)} & {_tex(r.backend)} & {_tex(r.task)} "
-                     f"& {metric} & {ci} & {infer} & {peak} & {energy} \\\\")
+            metric = infer = peak = energy = f"\\text{{{r.status.value}}}"
+        cells = [_tex(r.model), _tex(r.backend)]
+        if task is None:
+            cells.append(_tex(r.task))
+        cells += [metric, infer, peak, energy]
+        lines.append(" & ".join(cells) + " \\\\")
     body = "\n".join(lines)
     footer = "\n\\bottomrule\n\\end{tabular}"
     return header + body + footer
@@ -66,14 +65,6 @@ def _plot_tradeoff_ax(ax, rows, color_of) -> None:
     x_max = max((r.infer_ms_mean for r in rows), default=1.0)
     for r in rows:
         marker = _BACKEND_MARKERS.get(r.backend, "s")
-        # Vertical 95% bootstrap CI on accuracy, where per-example scores exist.
-        scores = getattr(r, "per_example_scores", None)
-        ci = bootstrap_ci(scores) if scores else None
-        if ci is not None:
-            yerr = [[r.metric_value - ci[0]], [ci[1] - r.metric_value]]
-            ax.errorbar(r.infer_ms_mean, r.metric_value, yerr=yerr, fmt="none",
-                        ecolor=color_of[r.model], elinewidth=1.0, capsize=2,
-                        alpha=0.8, zorder=2)
         ax.scatter(r.infer_ms_mean, r.metric_value, s=70, marker=marker,
                    color=color_of[r.model], edgecolors="white", linewidths=0.8,
                    zorder=3)

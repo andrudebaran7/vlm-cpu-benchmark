@@ -23,22 +23,19 @@ def test_latex_table_marks_failed_and_na():
     table = latex_results_table([_ok("a", 100.0, 0.5), _failed("b")])
     assert "tabular" in table
     assert "failed" in table
-    assert "lllrlrrr" in table
+    assert "lllrrrr" in table       # combined table keeps the task column
     assert "energy\\_j" in table
-    assert "metric 95\\% CI" in table
 
 
-def test_ci_column_present_and_dashed_without_scores():
-    # A cell with no per-example scores shows an em-dash in the CI column.
-    table = latex_results_table([_ok("a", 100.0, 0.5)])
-    assert "---" in table
-
-
-def test_ci_column_shows_interval_with_scores():
-    cell = _ok("a", 100.0, 0.5)
-    cell.per_example_scores = [0.0, 1.0] * 40  # mean 0.5
-    table = latex_results_table([cell])
-    assert "[0." in table  # a bracketed interval rendered
+def test_per_task_table_drops_task_column_and_filters():
+    a = _ok("a", 100.0, 0.5)        # task docvqa (from _ok)
+    b = _ok("b", 200.0, 0.6)
+    b.task = "ocrbench"
+    table = latex_results_table([a, b], task="docvqa")
+    assert "llrrrr" in table        # one fewer column (no task)
+    assert "docvqa" not in table    # constant task column omitted
+    assert "\na & fp32 & 0.500" in table  # model a present, no task cell
+    assert " b " not in table       # ocrbench cell filtered out
 
 
 def test_tradeoff_plot_written(tmp_path):
