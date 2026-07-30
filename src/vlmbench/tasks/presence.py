@@ -21,6 +21,10 @@ COCO_CLASSES = ("person", "car", "dog", "chair", "bottle")
 _POOL_CAP = 200
 _POOL_SEED = 20260722
 
+# Cache built examples by (vocab, cap, seed) so every model in a run sees the
+# identical example set (fair comparison) and COCO is streamed only once.
+_CACHE: dict[tuple[str, int, int], tuple] = {}
+
 
 def build_presence(
     rows: Iterable[tuple[Any, set[str]]],
@@ -121,6 +125,10 @@ def load_presence(
     if vocab != "coco":
         raise ValueError(f"unknown vocab: {vocab!r}; known: coco")
 
+    key = (vocab, cap, seed)
+    if key in _CACHE:
+        return _CACHE[key]
+
     from datasets import load_dataset
 
     # Stream COCO (the full val split is ~38 GiB to materialize; streaming
@@ -137,4 +145,6 @@ def load_presence(
     # Build presence examples
     examples = build_presence(rows, COCO_CLASSES, seed)
 
-    return examples, TaskSpec(name="presence-coco", metric=yesno_match)
+    result = (examples, TaskSpec(name="presence-coco", metric=yesno_match))
+    _CACHE[key] = result
+    return result
