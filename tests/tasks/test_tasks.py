@@ -91,3 +91,12 @@ def test_run_task_scores_predictions():
     assert preds == ["cat", "dog"]
     assert score == 0.5
     assert scores == [1.0, 0.0]  # per-example scores surfaced for bootstrap CIs
+
+
+def test_yesno_match_extracts_token_from_freeform():
+    from vlmbench.tasks.metrics import yesno_match
+    assert yesno_match("Yes.", ["yes"]) == 1.0            # VLM with punctuation
+    assert yesno_match("No, there is no person.", ["no"]) == 1.0  # first token
+    assert yesno_match("yes", ["yes"]) == 1.0             # detector exact
+    assert yesno_match("Yes.", ["no"]) == 0.0             # wrong
+    assert yesno_match("I cannot tell", ["yes"]) == 0.0   # no token -> wrong

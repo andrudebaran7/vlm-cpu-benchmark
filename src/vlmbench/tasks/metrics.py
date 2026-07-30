@@ -1,8 +1,24 @@
 from __future__ import annotations
 
+import re
+
 
 def _normalize(text: str) -> str:
     return " ".join(text.strip().lower().split())
+
+
+_YESNO_RE = re.compile(r"\b(yes|no)\b")
+
+
+def yesno_match(pred: str, golds: list[str]) -> float:
+    """Binary yes/no scoring for presence-style questions. Extracts the first
+    yes/no token from a free-form answer (VLMs reply e.g. ``"Yes."`` or ``"No,
+    there is no person."``; detectors reply exactly ``"yes"``/``"no"``) and
+    compares it to the gold yes/no. An answer with no yes/no token scores 0."""
+    m = _YESNO_RE.search(_normalize(pred))
+    predicted = m.group(1) if m else None
+    gold = _normalize(golds[0]) if golds else None
+    return 1.0 if predicted is not None and predicted == gold else 0.0
 
 
 def exact_match(pred: str, golds: list[str]) -> float:

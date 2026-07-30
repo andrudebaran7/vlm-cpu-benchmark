@@ -1,0 +1,7 @@
+models: [yolo11n, smolvlm-256m]
+backends: [fp32]
+tasks: [presence-coco]
+warmup: 1
+repeats: 2
+subsample_n: 4
+seed: 20260722

@@ -13,3 +13,7 @@ paper_artifacts/
 
 # per-example score re-run for CIs
 results_ci/
+
+# presence benchmark outputs
+results_presence_smoke/
+results_presence_coco/

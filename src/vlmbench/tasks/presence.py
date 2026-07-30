@@ -3,7 +3,9 @@
 This task is shared by detectors and VLMs, providing a fair comparison
 on the same harness. Scope A implements COCO variant only (open-vocab is deferred).
 
-The metric is exact_match: a simple yes/no check.
+The metric is yesno_match: it extracts the first yes/no token from a
+free-form answer, so VLM replies like "Yes." score correctly against the
+detectors' exact "yes"/"no".
 """
 from __future__ import annotations
 
@@ -11,7 +13,7 @@ import random
 from typing import Any, Iterable
 
 from .base import Example, TaskSpec
-from .metrics import exact_match
+from .metrics import yesno_match
 
 PROMPT_TEMPLATE = "Is there a {cls} in this image? Answer yes or no."
 COCO_CLASSES = ("person", "car", "dog", "chair", "bottle")
@@ -121,18 +123,18 @@ def load_presence(
 
     from datasets import load_dataset
 
-    # Load COCO dataset and cap at 4x pool cap (for more downsampling headroom)
-    ds = load_dataset("detection-datasets/coco", split="val")
-    ds = ds.shuffle(seed=seed).select(range(min(cap * 4, len(ds))))
-
-    # Extract (image, present_class_names) from dataset
-    id_to_name = ds.features["objects"].feature["category"].names
+    # Stream COCO (the full val split is ~38 GiB to materialize; streaming
+    # only fetches the examples we consume). Take a pool of ~4x the cap for
+    # downsampling headroom.
+    ds = load_dataset("detection-datasets/coco", split="val", streaming=True)
+    id_to_name = ds.features["objects"]["category"].feature.names
+    pool = ds.shuffle(seed=seed, buffer_size=max(cap * 4, 500)).take(cap * 4)
     rows = [
         (r["image"], {id_to_name[cat_id] for cat_id in r["objects"]["category"]})
-        for r in ds
+        for r in pool
     ]
 
     # Build presence examples
     examples = build_presence(rows, COCO_CLASSES, seed)
 
-    return examples, TaskSpec(name="presence-coco", metric=exact_match)
+    return examples, TaskSpec(name="presence-coco", metric=yesno_match)
