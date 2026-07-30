@@ -42,13 +42,22 @@ Also split Table I into per-task tables and kept the figure error-bar-free
 
 ## Big lever (review's #1 — the central missing piece)
 
-- [ ] **BL1 · Detector baseline (YOLO / RT-DETR on CPU).** 🔴 separate
-  experiment; highest impact. The paper claims VLMs could replace detectors but
-  never measures a detector. Add YOLOv8n / YOLOv5n (and RT-DETR if feasible) on
-  CPU on an equivalent task (e.g. binary "is there text?" or approximate
-  localization), measuring latency/memory/accuracy. This is the "bridge" work
-  and pairs with the sibling repo `cv-detection-seg-report`. Large but converts
-  the paper into "VLMs vs detectors on CPU."
+- [x] **BL1 · Detector baseline (YOLO / RT-DETR on CPU).** DONE (2026-07-30).
+  Three detectors (yolo11n, rt-detr, yolo-world) vs the four VLMs on a shared
+  binary object-presence task (COCO classes, N=120), same Ryzen, same harness
+  (`presence-coco`; Table III in the paper). Findings: detectors dominate the
+  trade-off on their home turf — Moondream2 (0.950) is a statistical tie with
+  RT-DETR (0.933) but ~410x slower and ~300x more energy; yolo11n does it at
+  50 ms / <1 J (~4600x faster, ~3500x cheaper than Moondream2). RF-DETR was
+  dropped (requires transformers>=5, incompatible with the VLM env — added to
+  the reproducibility taxonomy). **Deferred → "B" below:** the open-vocabulary
+  variant (LVIS/OpenImages ground truth) where fixed detectors can't compete.
+- [ ] **BL1-B · Open-vocabulary detector comparison.** 🔴 the deferred half of
+  BL1: a `presence-openvocab` variant with classes outside COCO. Blocked in
+  the spike because LVIS is not on HF `datasets`; candidate source: OpenImages
+  image-level labels. Where the VLMs' generality should finally pay off.
+  Minor code follow-ups also open (see the branch's deferred-Minors note):
+  cap the cached presence example set; thread `config.seed` into the loader.
 
 ## Generalization (review's #4 scope)
 
