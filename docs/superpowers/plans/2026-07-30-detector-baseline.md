@@ -26,7 +26,7 @@
 - **Two variants:** `presence-coco` (targets ∈ COCO-80, ground truth COCO) and `presence-openvocab` (targets ∈ LVIS-minus-COCO, ground truth LVIS). Balanced ~50/50 yes/no via seeded sampling.
 - **Five target classes per variant.** COCO set: `person, car, dog, chair, bottle`. Open-vocav set: chosen from LVIS-not-COCO in the spike (candidates: `traffic_cone, whiteboard, sunglasses, thermos, dumbbell`).
 - **N=120 per cell, seed 20260722** (matches the paper's VLM runs; ~24 examples/class). Aggregate accuracy is reported with a bootstrap CI (`vlmbench.report.stats.bootstrap_ci`).
-- **Metric:** `exact_match` on normalized yes/no.
+- **Metric:** `yesno_match` (extract first yes/no token) on the yes/no answer.
 - **Detectors are AGPL-3.0 (ultralytics)** — record in `ModelMeta.license`; ties to the paper's licensing discussion.
 - **Confidence threshold 0.25** for a detection to count as presence (standard default).
 - Run Python via `.venv/bin/python` / `.venv/bin/python -m pytest`.
