@@ -6,7 +6,18 @@
 
 **Architecture:** Detectors and VLMs answer "Is there a {class} in this image? Answer yes or no." A detector adapter runs detection and returns "yes"/"no" (parsing the target class from the fixed-format prompt — no framework signature change). A presence-task builder produces balanced examples with yes/no ground truth. The unchanged orchestrator profiles every cell (latency/RSS/energy) and scores with `exact_match`.
 
-**Tech Stack:** Python, `ultralytics` (yolo11n, yolo-world, rt-detr), `rfdetr`, HF `datasets` (COCO + LVIS), the existing `vlmbench` harness (orchestrator, profiling, records, stats).
+**Tech Stack:** Python, `ultralytics` (yolo11n, yolo-world, rt-detr), HF `datasets` (COCO), the existing `vlmbench` harness (orchestrator, profiling, records, stats).
+
+> **SCOPE ADJUSTMENT after the Task 1 spike (2026-07-30):** The spike found
+> (a) `rfdetr` hard-requires `transformers>=5`, which breaks the VLM env
+> (pinned `<5`) — **rfdetr is dropped**; three detectors remain (yolo11n,
+> rt-detr, yolo-world). (b) LVIS is not available on HF `datasets`, so
+> **`presence-openvocab` is deferred** (roadmap item "B"); we proceed with
+> **`presence-coco` only** now. Therefore: Task 2 builds/registers only
+> `presence-coco`; Task 3 builds only the three ultralytics detector adapters
+> and the `[detectors]` extra is `ultralytics` only (no `rfdetr`); Tasks 4–6
+> use one presence variant and one table. The rfdetr/transformers env conflict
+> is itself a paper finding (reproducibility taxonomy).
 
 ## Global Constraints
 
