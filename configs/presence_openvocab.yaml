@@ -1,0 +1,8 @@
+# Open-vocabulary presence (out-of-COCO apparel classes, Fashionpedia), this machine.
+models: [yolo11n, rt-detr, yolo-world, smolvlm-256m, florence2-base, internvl2_5-2b, moondream2]
+backends: [fp32]
+tasks: [presence-openvocab]
+warmup: 1
+repeats: 3
+subsample_n: 120
+seed: 20260722

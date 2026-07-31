@@ -17,3 +17,6 @@ results_ci/
 # presence benchmark outputs
 results_presence_smoke/
 results_presence_coco/
+
+results_ov_smoke/
+results_presence_openvocab/

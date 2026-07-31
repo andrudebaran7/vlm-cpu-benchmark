@@ -17,6 +17,16 @@ from .metrics import yesno_match
 
 PROMPT_TEMPLATE = "Is there a {cls} in this image? Answer yes or no."
 COCO_CLASSES = ("person", "car", "dog", "chair", "bottle")
+# Open-vocabulary variant: fine-grained apparel classes outside the COCO-80,
+# from Fashionpedia. Fixed-vocabulary detectors (yolo11n, rt-detr) cannot name
+# these; only the open-vocab YOLO-World and the VLMs can.
+OPENVOCAB_CLASSES = ("dress", "skirt", "jacket", "hat", "shoe")
+
+# Streaming dataset + target classes per variant.
+_VARIANTS = {
+    "coco": ("detection-datasets/coco", "val", COCO_CLASSES),
+    "openvocab": ("detection-datasets/fashionpedia", "val", OPENVOCAB_CLASSES),
+}
 
 _POOL_CAP = 200
 _POOL_SEED = 20260722
@@ -115,15 +125,10 @@ def load_presence(
         Tuple of (examples, TaskSpec).
 
     Raises:
-        NotImplementedError: If vocab is not "coco".
+        ValueError: If vocab is not a known variant.
     """
-    if vocab == "openvocab":
-        raise NotImplementedError(
-            "presence-openvocab deferred: LVIS unavailable (see plan scope adjustment)"
-        )
-
-    if vocab != "coco":
-        raise ValueError(f"unknown vocab: {vocab!r}; known: coco")
+    if vocab not in _VARIANTS:
+        raise ValueError(f"unknown vocab: {vocab!r}; known: {sorted(_VARIANTS)}")
 
     key = (vocab, cap, seed)
     if key in _CACHE:
@@ -131,10 +136,11 @@ def load_presence(
 
     from datasets import load_dataset
 
-    # Stream COCO (the full val split is ~38 GiB to materialize; streaming
-    # only fetches the examples we consume). Take a pool of ~4x the cap for
+    dataset_id, split, classes = _VARIANTS[vocab]
+    # Stream the detection dataset (materializing a full split is tens of GiB;
+    # streaming only fetches the examples we consume). Take ~4x the cap for
     # downsampling headroom.
-    ds = load_dataset("detection-datasets/coco", split="val", streaming=True)
+    ds = load_dataset(dataset_id, split=split, streaming=True)
     id_to_name = ds.features["objects"]["category"].feature.names
     pool = ds.shuffle(seed=seed, buffer_size=max(cap * 4, 500)).take(cap * 4)
     rows = [
@@ -142,9 +148,7 @@ def load_presence(
         for r in pool
     ]
 
-    # Build presence examples
-    examples = build_presence(rows, COCO_CLASSES, seed)
-
-    result = (examples, TaskSpec(name="presence-coco", metric=yesno_match))
+    examples = build_presence(rows, classes, seed)
+    result = (examples, TaskSpec(name=f"presence-{vocab}", metric=yesno_match))
     _CACHE[key] = result
     return result

@@ -27,3 +27,10 @@ def test_build_presence_is_balanced():
     yes = sum(e.answers[0] == "yes" for e in ex)
     no = sum(e.answers[0] == "no" for e in ex)
     assert yes == no == 2
+
+
+def test_presence_openvocab_registered_with_apparel_classes():
+    from vlmbench.tasks.presence import OPENVOCAB_CLASSES
+    assert "presence-openvocab" in known_tasks()
+    # Out-of-COCO apparel classes for the open-vocab variant.
+    assert "dress" in OPENVOCAB_CLASSES and "skirt" in OPENVOCAB_CLASSES
