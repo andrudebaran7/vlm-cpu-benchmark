@@ -52,12 +52,19 @@ Also split Table I into per-task tables and kept the figure error-bar-free
   dropped (requires transformers>=5, incompatible with the VLM env — added to
   the reproducibility taxonomy). **Deferred → "B" below:** the open-vocabulary
   variant (LVIS/OpenImages ground truth) where fixed detectors can't compete.
-- [ ] **BL1-B · Open-vocabulary detector comparison.** 🔴 the deferred half of
-  BL1: a `presence-openvocab` variant with classes outside COCO. Blocked in
-  the spike because LVIS is not on HF `datasets`; candidate source: OpenImages
-  image-level labels. Where the VLMs' generality should finally pay off.
-  Minor code follow-ups also open (see the branch's deferred-Minors note):
-  cap the cached presence example set; thread `config.seed` into the loader.
+- [x] **BL1-B · Open-vocabulary detector comparison.** DONE (2026-08-01).
+  The `presence-openvocab` variant: five out-of-COCO apparel classes (dress,
+  skirt, jacket, hat, shoe) with Fashionpedia ground truth (LVIS/OpenImages
+  were unavailable as streamable HF datasets; Fashionpedia streams in the same
+  parquet format as COCO). Same seven models, N=120, same harness (Table IV).
+  The mirror image of BL1: fixed detectors (yolo11n, rt-detr) can't name the
+  classes, short-circuit to "no" at 0 ms / 0 J and land at chance (0.450),
+  while the VLMs win decisively (InternVL2.5-2B 0.892, Moondream2 0.867;
+  intervals clear YOLO-World's 0.625). So the replace-a-detector answer flips
+  with the task: detectors own closed-vocab, VLMs earn their cost on open-vocab.
+  Paper integrated (abstract/intro/method/results/future-work). Merged to both
+  repos. Minor code follow-ups still open (deferred, non-blocking): cap the
+  cached presence example set; thread `config.seed` into the loader.
 
 ## Generalization (review's #4 scope)
 
