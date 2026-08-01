@@ -1,7 +1,8 @@
 """Binary object-presence task: "Is there a {class} in this image? yes/no".
 
 This task is shared by detectors and VLMs, providing a fair comparison
-on the same harness. Scope A implements COCO variant only (open-vocab is deferred).
+on the same harness. Two variants: coco (COCO-80 classes, ground truth
+COCO) and openvocab (out-of-COCO apparel classes, ground truth Fashionpedia).
 
 The metric is yesno_match: it extracts the first yes/no token from a
 free-form answer, so VLM replies like "Yes." score correctly against the
@@ -114,7 +115,7 @@ def load_presence(
     """Load presence task examples.
 
     For vocab="coco": Load COCO dataset, shuffle, cap, and build presence examples.
-    For vocab="openvocab": Deferred (LVIS unavailable).
+    For vocab="openvocab": out-of-COCO apparel classes from Fashionpedia.
 
     Args:
         vocab: Either "coco" or "openvocab".
