@@ -1,6 +1,6 @@
 # vlmbench
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21781552.svg)](https://doi.org/10.5281/zenodo.21781552)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21781551.svg)](https://doi.org/10.5281/zenodo.21781551)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 A CPU-only efficiency and quantization benchmark framework for small vision language models (VLMs). This tool enables benchmarking of small VLMs on CPU-only environments, measuring performance and resource utilization across different quantization methods and optimization techniques.
