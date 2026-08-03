@@ -20,3 +20,7 @@ results_presence_coco/
 
 results_ov_smoke/
 results_presence_openvocab/
+
+# downloaded model weights (detector checkpoints, ultralytics auto-downloads)
+*.pt
+weights/
