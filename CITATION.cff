@@ -10,6 +10,7 @@ abstract: >-
   VLMs against CPU object detectors in closed- and open-vocabulary regimes.
 type: software
 version: 1.0.0
+doi: 10.5281/zenodo.21781552
 license: Apache-2.0
 repository-code: "https://github.com/andrudebaran7/vlm-cpu-benchmark"
 authors:
