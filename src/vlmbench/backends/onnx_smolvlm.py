@@ -86,9 +86,15 @@ class OnnxSmolVLM:
         feats = image_features.reshape(-1, _HIDDEN)
         mask = (input_ids[0] == self._image_token_id)
         n = int(mask.sum())
-        if n != feats.shape[0]:  # be defensive; use as many as line up
-            feats = feats[:n]
-        inputs_embeds[0, mask] = feats.astype(inputs_embeds.dtype)
+        if n != feats.shape[0]:
+            # Image-token count and produced features disagree; align to the
+            # smaller of the two so neither indexing side overflows (a bare
+            # feats[:n] would still overflow when n > feats.shape[0]).
+            m = min(n, feats.shape[0])
+            pos = np.flatnonzero(mask)[:m]
+            inputs_embeds[0, pos] = feats[:m].astype(inputs_embeds.dtype)
+        else:
+            inputs_embeds[0, mask] = feats.astype(inputs_embeds.dtype)
         return inputs_embeds
 
     def _empty_past(self, batch: int) -> dict[str, np.ndarray]:

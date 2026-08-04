@@ -66,4 +66,8 @@ class JsonlStore:
         return out
 
     def completed_keys(self) -> set[tuple[str, str, str]]:
-        return {r.key() for r in self.load()}
+        # A failed cell is not complete: a re-run (e.g. after fixing the cause)
+        # must retry it rather than silently skip it. OK / unsupported / oom are
+        # terminal. (A successful retry appends a fresh row; regenerate reports
+        # from a clean run so the stale failed row is not double-counted.)
+        return {r.key() for r in self.load() if r.status is not CellStatus.FAILED}

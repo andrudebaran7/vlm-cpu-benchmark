@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import traceback
 from typing import Callable
 
@@ -73,6 +74,7 @@ def _run_cell(model_name, backend, task_name, examples, spec,
         fields.update(kw)
         return CellResult(**fields)
 
+    model = None
     try:
         model = model_factory(model_name)
         if not backend_supports(model.meta, backend):
@@ -93,3 +95,9 @@ def _run_cell(model_name, backend, task_name, examples, spec,
     except Exception as exc:  # isolation: never abort the run
         return base(CellStatus.FAILED,
                     error=f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}")
+    finally:
+        # Release the model before the next cell so its memory does not carry
+        # into the following cell's peak_rss (models are otherwise kept alive
+        # only by this local; dropping it + gc keeps cells from accumulating).
+        del model
+        gc.collect()

@@ -32,3 +32,15 @@ def test_failed_record_preserves_error(tmp_path):
         energy_j=None, error="boom",
     ))
     assert store.load()[0].error == "boom"
+
+
+def test_failed_cells_are_not_treated_as_completed(tmp_path):
+    # A re-run must retry failed cells, not skip them (audit I3).
+    store = JsonlStore(tmp_path / "r.jsonl")
+    store.append(make_result(backend="fp32", status=CellStatus.OK))
+    store.append(make_result(backend="onnx-int8", status=CellStatus.FAILED))
+    store.append(make_result(task="ocrbench", status=CellStatus.UNSUPPORTED))
+    keys = store.completed_keys()
+    assert ("smolvlm-256m", "fp32", "docvqa") in keys           # OK is done
+    assert ("smolvlm-256m", "fp32", "ocrbench") in keys         # unsupported is terminal
+    assert ("smolvlm-256m", "onnx-int8", "docvqa") not in keys  # failed -> retry
