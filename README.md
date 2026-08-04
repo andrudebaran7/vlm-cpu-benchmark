@@ -41,3 +41,39 @@ Run only tests that don't require downloading models:
 ```bash
 .venv/bin/python -m pytest -v -m 'not slow'
 ```
+
+## Reproducing the paper
+
+The measurement data behind every table and figure is versioned in this repo
+(see [`DATA.md`](DATA.md) for the schema and the honest measurement caveats):
+`results/`, `results_presence_coco/`, `results_presence_openvocab/`, and the
+generated `paper_artifacts/`.
+
+For an exact environment, install the pinned stack (Python 3.12):
+
+```bash
+pip install -r requirements-lock.txt
+```
+
+The paper's numbers come from these configs:
+
+| Paper result | Config |
+|---|---|
+| DocVQA + OCRBench (Tables I–II) | `configs/large_eval.yaml` → `results/` |
+| Presence, closed-vocab COCO (Table III) | `configs/presence_coco.yaml` → `results_presence_coco/` |
+| Presence, open-vocab Fashionpedia (Table IV) | `configs/presence_openvocab.yaml` → `results_presence_openvocab/` |
+
+Run a benchmark and (re)generate the tables/figures:
+
+```bash
+.venv/bin/python scripts/run_benchmark.py --config configs/large_eval.yaml --out results
+.venv/bin/python scripts/measure_energy.py --config configs/large_eval.yaml --results results/results.jsonl
+.venv/bin/python scripts/make_figures.py --results results/results.jsonl --out-dir paper_artifacts
+# presence tables/figure (Florence-2 excluded: its <OCR> adapter emits no yes/no)
+.venv/bin/python scripts/make_figures.py \
+  --results results_presence_coco/results.jsonl results_presence_openvocab/results.jsonl \
+  --out-dir paper_artifacts --figure tradeoff_presence.png --exclude florence2-base
+```
+
+The companion paper repo picks these up with `make sync`. See
+[`docs/known-issues.md`](docs/known-issues.md) for the dated reproducibility log.
