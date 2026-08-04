@@ -25,29 +25,57 @@ def _tex(s: str) -> str:
     return str(s).replace("\\", r"\textbackslash{}").replace("_", r"\_").replace("&", r"\&")
 
 
-def latex_results_table(results: list[CellResult], task: str | None = None) -> str:
-    """Render a booktabs results table. If ``task`` is given, only that task's
-    cells are shown and the (now-constant) task column is omitted."""
-    rows = [r for r in results if task is None or r.task == task]
+# Paper display names for the internal model ids, so tables and figures show the
+# same names the prose uses (audit E8).
+_DISPLAY = {
+    "smolvlm-256m": "SmolVLM-256M",
+    "moondream2": "Moondream2",
+    "florence2-base": "Florence-2",
+    "internvl2_5-2b": "InternVL2.5-2B",
+    "yolo11n": "YOLO11n",
+    "rt-detr": "RT-DETR",
+    "yolo-world": "YOLO-World",
+}
+
+
+def _name(model: str) -> str:
+    return _DISPLAY.get(model, model)
+
+
+def latex_results_table(results: list[CellResult], task: str | None = None,
+                        exclude: tuple[str, ...] = ()) -> str:
+    """Render a booktabs results table with a bootstrap 95% CI column.
+
+    If ``task`` is given, only that task's cells are shown and the
+    (now-constant) task column is omitted. Models in ``exclude`` are dropped
+    (e.g. Florence-2 on the presence tasks, whose ``<OCR>`` adapter emits no
+    yes/no answer)."""
+    from .stats import bootstrap_ci
+    rows = [r for r in results
+            if (task is None or r.task == task) and r.model not in exclude]
     if task is None:
-        colspec, head = "lllrrrr", "model & backend & task & metric"
+        colspec = "lllrlrrr"
+        head = "model & backend & task & metric & 95\\% CI"
     else:
-        colspec, head = "llrrrr", "model & backend & metric"
+        colspec = "llrlrrr"
+        head = "model & backend & metric & 95\\% CI"
     header = (f"\\begin{{tabular}}{{{colspec}}}\n\\toprule\n"
               f"{head} & infer\\_ms & peak\\_mb & energy\\_j \\\\\n\\midrule\n")
     lines = []
     for r in rows:
         if r.status is CellStatus.OK:
             metric = _fmt(r.metric_value)
+            ci = bootstrap_ci(r.per_example_scores) if r.per_example_scores else None
+            ci_str = f"[{ci[0]:.3f}, {ci[1]:.3f}]" if ci else "---"
             infer = _fmt_int(r.infer_ms_mean)
             peak = _fmt_int(r.peak_rss_mb)
             energy = _fmt_int(r.energy_j)
         else:
-            metric = infer = peak = energy = f"\\text{{{r.status.value}}}"
-        cells = [_tex(r.model), _tex(r.backend)]
+            metric = ci_str = infer = peak = energy = f"\\text{{{r.status.value}}}"
+        cells = [_tex(_name(r.model)), _tex(r.backend)]
         if task is None:
             cells.append(_tex(r.task))
-        cells += [metric, infer, peak, energy]
+        cells += [metric, ci_str, infer, peak, energy]
         lines.append(" & ".join(cells) + " \\\\")
     body = "\n".join(lines)
     footer = "\n\\bottomrule\n\\end{tabular}"
@@ -56,8 +84,9 @@ def latex_results_table(results: list[CellResult], task: str | None = None) -> s
 
 # Okabe-Ito colourblind-safe qualitative palette (validated: adjacent CVD
 # deltaE >= 11). Identity is carried by colour (per model) AND by the direct
-# label, so no point relies on colour alone.
-_MODEL_COLORS = ("#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9")
+# model-name label on every point (fp32 and INT8 alike), so no point relies on
+# colour alone.
+_MODEL_COLORS = ("#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9", "#F0E442")
 _BACKEND_MARKERS = {"fp32": "o", "onnx-int8": "^"}
 
 
@@ -75,11 +104,13 @@ def _plot_tradeoff_ax(ax, rows, color_of) -> None:
                    color=color_of[r.model], edgecolors="white", linewidths=0.8,
                    zorder=3)
         if r.backend == "fp32":
-            label = r.model
+            label = _name(r.model)
             right_edge = r.infer_ms_mean > x_max / 3
             dx, ha = (-6, "right") if right_edge else (6, "left")
         else:
-            label, dx, ha = r.backend, -6, "right"
+            # Label INT8 points with the model name too (marker encodes the
+            # backend), so identity never rests on colour alone (audit E7).
+            label, dx, ha = f"{_name(r.model)} INT8", -6, "right"
         ax.annotate(label, (r.infer_ms_mean, r.metric_value),
                     textcoords="offset points", xytext=(dx, 5), ha=ha,
                     fontsize=7, color="0.15")
@@ -87,13 +118,15 @@ def _plot_tradeoff_ax(ax, rows, color_of) -> None:
     ax.set_ylim(-0.05, max((r.metric_value for r in rows), default=1.0) + 0.12)
 
 
-def save_tradeoff_plot(results: list[CellResult], path) -> Path:
+def save_tradeoff_plot(results: list[CellResult], path,
+                       exclude: tuple[str, ...] = ()) -> Path:
     from matplotlib.lines import Line2D
 
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     ok = [r for r in results if r.status is CellStatus.OK
-          and r.infer_ms_mean is not None and r.metric_value is not None]
+          and r.infer_ms_mean is not None and r.metric_value is not None
+          and r.model not in exclude]
 
     # Stable model -> colour assignment, shared across task panels.
     models = sorted({r.model for r in ok})

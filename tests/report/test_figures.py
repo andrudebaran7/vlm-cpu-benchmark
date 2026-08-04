@@ -23,7 +23,8 @@ def test_latex_table_marks_failed_and_na():
     table = latex_results_table([_ok("a", 100.0, 0.5), _failed("b")])
     assert "tabular" in table
     assert "failed" in table
-    assert "lllrrrr" in table       # combined table keeps the task column
+    assert "lllrlrrr" in table      # combined table: task column + CI column
+    assert "95\\% CI" in table
     assert "energy\\_j" in table
 
 
@@ -32,10 +33,21 @@ def test_per_task_table_drops_task_column_and_filters():
     b = _ok("b", 200.0, 0.6)
     b.task = "ocrbench"
     table = latex_results_table([a, b], task="docvqa")
-    assert "llrrrr" in table        # one fewer column (no task)
+    assert "llrlrrr" in table       # no task column, plus the CI column
     assert "docvqa" not in table    # constant task column omitted
     assert "\na & fp32 & 0.500" in table  # model a present, no task cell
     assert " b " not in table       # ocrbench cell filtered out
+
+
+def test_table_excludes_models_and_uses_display_names():
+    florence = _ok("florence2-base", 300.0, 0.0)
+    florence.task = "presence-coco"
+    keep = _ok("internvl2_5-2b", 100.0, 0.9)
+    keep.task = "presence-coco"
+    table = latex_results_table([florence, keep], task="presence-coco",
+                                exclude=("florence2-base",))
+    assert "Florence-2" not in table and "florence" not in table  # excluded
+    assert "InternVL2.5-2B" in table                              # display name
 
 
 def test_tradeoff_plot_written(tmp_path):

@@ -1,13 +1,12 @@
-\begin{tabular}{llrrrr}
+\begin{tabular}{llrlrrr}
 \toprule
-model & backend & metric & infer\_ms & peak\_mb & energy\_j \\
+model & backend & metric & 95\% CI & infer\_ms & peak\_mb & energy\_j \\
 \midrule
-yolo11n & fp32 & 0.450 & 0 & 7568 & 0 \\
-rt-detr & fp32 & 0.450 & 0 & 7570 & 0 \\
-yolo-world & fp32 & 0.625 & 234 & 7735 & 5 \\
-smolvlm-256m & fp32 & 0.758 & 26418 & 9405 & 395 \\
-florence2-base & fp32 & 0.000 & 2758 & 7770 & 40 \\
-internvl2\_5-2b & fp32 & 0.892 & 9664 & 11019 & 150 \\
-moondream2 & fp32 & 0.867 & 239610 & 6060 & 3581 \\
+YOLO11n & fp32 & 0.450 & [0.358, 0.542] & 0 & 7568 & 0 \\
+RT-DETR & fp32 & 0.450 & [0.358, 0.542] & 0 & 7570 & 0 \\
+YOLO-World & fp32 & 0.625 & [0.542, 0.708] & 234 & 7735 & 5 \\
+SmolVLM-256M & fp32 & 0.758 & [0.683, 0.833] & 26418 & 9405 & 395 \\
+InternVL2.5-2B & fp32 & 0.892 & [0.833, 0.942] & 9664 & 11019 & 150 \\
+Moondream2 & fp32 & 0.867 & [0.800, 0.925] & 239610 & 6060 & 3581 \\
 \bottomrule
 \end{tabular}
