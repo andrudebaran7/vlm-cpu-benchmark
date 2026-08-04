@@ -1,10 +1,10 @@
 {
   "title": "vlm-cpu-benchmark: A Fair CPU-Only Efficiency and Quantization Benchmark for Small Vision-Language Models",
-  "description": "A reproducible, CPU-only benchmarking framework for small vision-language models. It separates pre-processing, inference, and post-processing latency and reports peak memory and best-effort RAPL energy under fixed hardware, resolution, and token budgets, across fp32 and custom ONNX INT8 backends, on DocVQA, OCRBench, and a shared binary object-presence task that also compares the VLMs against CPU object detectors in closed- and open-vocabulary regimes. Accompanies the paper of the same name.",
+  "description": "A reproducible, CPU-only benchmarking framework for small vision-language models. It measures per-inference latency, peak memory, and best-effort RAPL energy on fixed hardware, with each model run through its native preprocessing under identical greedy decoding, across fp32 and custom ONNX INT8 backends, on DocVQA, OCRBench, and a shared binary object-presence task that also compares the VLMs against CPU object detectors in closed- and open-vocabulary regimes. Version 1.1.0 publishes the benchmark data and aligns the description with the method. Accompanies the paper of the same name.",
   "upload_type": "software",
   "access_right": "open",
   "license": "Apache-2.0",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "creators": [
     {
       "name": "Duarte, Sergio",
