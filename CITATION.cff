@@ -9,7 +9,7 @@ abstract: >-
   DocVQA, OCRBench, and a shared binary object-presence task that also compares
   the VLMs against CPU object detectors in closed- and open-vocabulary regimes.
 type: software
-version: 1.1.0
+version: 1.1.1
 doi: 10.5281/zenodo.21781551
 license: Apache-2.0
 repository-code: "https://github.com/andrudebaran7/vlm-cpu-benchmark"
