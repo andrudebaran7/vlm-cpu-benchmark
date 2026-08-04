@@ -1,0 +1,8 @@
+model,backend,task,status,metric_name,metric_value,infer_ms_mean,infer_ms_p95,peak_rss_mb,energy_j,error
+yolo11n,fp32,presence-openvocab,ok,presence-openvocab,0.45,0.002244332184394201,0.002673850394785404,7567.97265625,0.0,
+rt-detr,fp32,presence-openvocab,ok,presence-openvocab,0.45,0.002094350444773833,0.002246885560452938,7569.54296875,0.0,
+yolo-world,fp32,presence-openvocab,ok,presence-openvocab,0.625,234.4694663382446,235.64036107854918,7735.34765625,4.54574,
+smolvlm-256m,fp32,presence-openvocab,ok,presence-openvocab,0.7583333333333333,26418.088737331953,26459.205636614934,9404.87890625,395.29276,
+florence2-base,fp32,presence-openvocab,ok,presence-openvocab,0.0,2757.9486686348296,2759.957952518016,7770.28515625,40.02474,
+internvl2_5-2b,fp32,presence-openvocab,ok,presence-openvocab,0.8916666666666667,9664.469742643027,9672.992781177163,11018.99609375,149.742241,
+moondream2,fp32,presence-openvocab,ok,presence-openvocab,0.8666666666666667,239609.7330757184,241045.37424667506,6060.14453125,3580.641443,

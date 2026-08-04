@@ -1,0 +1,14 @@
+\begin{tabular}{llrrrr}
+\toprule
+model & backend & metric & infer\_ms & peak\_mb & energy\_j \\
+\midrule
+smolvlm-256m & fp32 & 0.325 & 27293 & 6072 & 398 \\
+smolvlm-256m & onnx-int8 & 0.408 & 15308 & 9119 & 229 \\
+moondream2 & fp32 & 0.625 & 84546 & 9306 & 1233 \\
+moondream2 & onnx-int8 & \text{unsupported} & \text{unsupported} & \text{unsupported} & \text{unsupported} \\
+florence2-base & fp32 & 0.533 & 2599 & 6579 & 41 \\
+florence2-base & onnx-int8 & 0.383 & 4107 & 6580 & 59 \\
+internvl2\_5-2b & fp32 & 0.583 & 14380 & 11081 & 206 \\
+internvl2\_5-2b & onnx-int8 & \text{unsupported} & \text{unsupported} & \text{unsupported} & \text{unsupported} \\
+\bottomrule
+\end{tabular}

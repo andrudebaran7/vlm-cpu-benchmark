@@ -4,22 +4,19 @@ __pycache__/
 .DS_Store
 *.egg-info/
 
-# generated benchmark outputs / paper artifacts
-results/
-paper_artifacts/
-
 # vlmbench runtime cache (quantized exports, patched tokenizers)
 .vlmbench_cache/
 
-# per-example score re-run for CIs
+# Intermediate / smoke outputs (superseded by the versioned canonical results
+# below; results_ci/ is the CI re-run whose per-example scores are already
+# folded into results/results.jsonl).
 results_ci/
-
-# presence benchmark outputs
 results_presence_smoke/
-results_presence_coco/
-
 results_ov_smoke/
-results_presence_openvocab/
+
+# NOTE: the canonical benchmark data that backs the paper IS versioned (see
+# data/README.md): results/, results_presence_coco/, results_presence_openvocab/,
+# and paper_artifacts/. They are intentionally NOT ignored.
 
 # downloaded model weights (detector checkpoints, ultralytics auto-downloads)
 *.pt
