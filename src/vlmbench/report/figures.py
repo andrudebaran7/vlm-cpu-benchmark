@@ -82,38 +82,41 @@ def latex_results_table(results: list[CellResult], task: str | None = None,
     return header + body + footer
 
 
-# Okabe-Ito colourblind-safe qualitative palette (validated: adjacent CVD
-# deltaE >= 11). Identity is carried by colour (per model) AND by the direct
-# model-name label on every point (fp32 and INT8 alike), so no point relies on
-# colour alone.
-_MODEL_COLORS = ("#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9", "#F0E442")
+# Fixed per-model colours (Okabe-Ito, colourblind-safe). Keyed by model id so a
+# model keeps the SAME colour in every figure regardless of which subset is
+# present -- colour follows the entity, never its rank in the current subset.
+_MODEL_COLOR = {
+    "smolvlm-256m":   "#D55E00",
+    "moondream2":     "#E69F00",
+    "florence2-base": "#009E73",
+    "internvl2_5-2b": "#0072B2",
+    "yolo11n":        "#56B4E9",
+    "rt-detr":        "#CC79A7",
+    "yolo-world":     "#F0E442",
+}
 _BACKEND_MARKERS = {"fp32": "o", "onnx-int8": "^"}
+_LOG_X_FLOOR = 1.0  # ms; short-circuit detectors report 0 ms (log axis needs >0)
 
 
-def _plot_tradeoff_ax(ax, rows, color_of) -> None:
-    """Draw one accuracy-vs-latency panel (log-x, colour=model, marker=backend,
-    direct labels that diverge same-model pairs to avoid collisions)."""
-    ax.set_xscale("log")  # latency spans ~2s..215s; log separates the cluster
+def _color_of(model: str) -> str:
+    return _MODEL_COLOR.get(model, "#333333")
+
+
+def _plot_tradeoff_ax(ax, rows) -> None:
+    """Draw one accuracy-vs-latency panel (log-x, colour=model, marker=backend).
+
+    Model identity is carried by the (fixed) colour plus the figure's model
+    legend, so points are not directly labelled --- which keeps coincident
+    points (e.g. two fixed detectors that both short-circuit at 0 ms) legible."""
+    ax.set_xscale("log")  # latency spans ~1ms..215s; log separates the cluster
     ax.grid(True, which="both", linewidth=0.4, color="0.85", zorder=0)
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
-    x_max = max((r.infer_ms_mean for r in rows), default=1.0)
     for r in rows:
         marker = _BACKEND_MARKERS.get(r.backend, "s")
-        ax.scatter(r.infer_ms_mean, r.metric_value, s=70, marker=marker,
-                   color=color_of[r.model], edgecolors="white", linewidths=0.8,
-                   zorder=3)
-        if r.backend == "fp32":
-            label = _name(r.model)
-            right_edge = r.infer_ms_mean > x_max / 3
-            dx, ha = (-6, "right") if right_edge else (6, "left")
-        else:
-            # Label INT8 points with the model name too (marker encodes the
-            # backend), so identity never rests on colour alone (audit E7).
-            label, dx, ha = f"{_name(r.model)} INT8", -6, "right"
-        ax.annotate(label, (r.infer_ms_mean, r.metric_value),
-                    textcoords="offset points", xytext=(dx, 5), ha=ha,
-                    fontsize=7, color="0.15")
+        ax.scatter(max(r.infer_ms_mean, _LOG_X_FLOOR), r.metric_value, s=70,
+                   marker=marker, color=_color_of(r.model), edgecolors="white",
+                   linewidths=0.8, zorder=3)
     ax.set_xlabel("inference latency (ms, log scale)")
     ax.set_ylim(-0.05, max((r.metric_value for r in rows), default=1.0) + 0.12)
 
@@ -128,27 +131,38 @@ def save_tradeoff_plot(results: list[CellResult], path,
           and r.infer_ms_mean is not None and r.metric_value is not None
           and r.model not in exclude]
 
-    # Stable model -> colour assignment, shared across task panels.
-    models = sorted({r.model for r in ok})
-    color_of = {m: _MODEL_COLORS[i % len(_MODEL_COLORS)] for i, m in enumerate(models)}
     tasks = sorted({r.task for r in ok})
 
     fig, axes = plt.subplots(1, max(len(tasks), 1), figsize=(5.0 * max(len(tasks), 1), 3.6),
                              squeeze=False)
     axes = axes[0]
     for ax, task in zip(axes, tasks):
-        _plot_tradeoff_ax(ax, [r for r in ok if r.task == task], color_of)
+        _plot_tradeoff_ax(ax, [r for r in ok if r.task == task])
         ax.set_title(f"{task} (CPU)")
     axes[0].set_ylabel("score (task metric)")
 
-    # One backend legend (marker shape); model identity is colour + direct label.
-    handles = [Line2D([0], [0], marker=m, linestyle="none", color="0.35",
-                      markerfacecolor="0.35", markersize=7, label=b)
-               for b, m in _BACKEND_MARKERS.items()]
-    axes[-1].legend(handles=handles, title="backend", fontsize=7,
-                    title_fontsize=7, frameon=False, loc="lower right")
+    backends = {r.backend for r in ok}
+    # Backend legend (marker shape) only when more than one backend is shown.
+    if len(backends) > 1:
+        bh = [Line2D([0], [0], marker=m, linestyle="none", color="0.35",
+                     markersize=7, label=b)
+              for b, m in _BACKEND_MARKERS.items() if b in backends]
+        axes[-1].legend(handles=bh, title="backend", fontsize=7,
+                        title_fontsize=7, frameon=False, loc="lower right")
 
-    fig.tight_layout()
-    fig.savefig(path, dpi=200)
+    # Shared model legend (fixed colour -> name), in fixed order, below the
+    # panels: identity is colour + legend, consistent across every figure.
+    present = {r.model for r in ok}
+    models_present = ([m for m in _MODEL_COLOR if m in present]
+                      + sorted(present - set(_MODEL_COLOR)))
+    mh = [Line2D([0], [0], marker="o", linestyle="none", color=_color_of(m),
+                 markeredgecolor="white", markersize=8, label=_name(m))
+          for m in models_present]
+    if mh:
+        fig.legend(handles=mh, ncol=min(len(mh), 4), fontsize=8, frameon=False,
+                   loc="lower center", bbox_to_anchor=(0.5, -0.02))
+
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    fig.savefig(path, dpi=200, bbox_inches="tight")
     plt.close(fig)
     return path
